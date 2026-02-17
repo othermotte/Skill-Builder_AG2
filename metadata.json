@@ -1,0 +1,7 @@
+{
+  "name": "The Leadership Skill Builder",
+  "description": "An application that assesses learners' leadership skills and helps them practice micro-skills to improve their capability through personalized learning.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
