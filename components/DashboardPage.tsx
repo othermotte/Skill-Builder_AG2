@@ -123,18 +123,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Target Scenario</p>
-          <div className="flex justify-between items-end">
+          <div className="flex justify-between items-end mb-4">
             <div>
                <p className="font-bold text-gray-900">{sessionScenario?.title || 'Unknown Lab'}</p>
                <p className="text-xs text-gray-500 mt-1">Last activity: {new Date(latestSession.timestamp).toLocaleDateString()}</p>
             </div>
-            {sessionScenario && (
-              <div className="text-right">
-                <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">Scenario Depth</p>
-                <p className="text-lg font-black text-gray-900">{scenarioDepthMap[sessionScenario.id] || 0}</p>
-              </div>
-            )}
           </div>
+          
+          {sessionScenario && (
+            <div className="pt-4 border-t border-gray-200/50 space-y-1">
+               <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                 You’ve practised <span className="font-black text-gray-900">{scenarioDepthMap[sessionScenario.id] || 0} micro-skills</span> in this scenario.
+               </p>
+               <p className="text-[10px] text-gray-400 font-bold leading-relaxed">
+                 We recommend around <span className="text-gray-600">12 micro-skill practices</span> before re-running a scenario.
+               </p>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-4">
