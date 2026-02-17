@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://leadershipskillslab.ai/sitemap.xml
