@@ -196,29 +196,37 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
       <header className="flex-none h-16 px-4 md:px-6 border-b border-gray-100 flex items-center justify-between bg-white z-10">
         <button onClick={onBackToDashboard} className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600">
             <ArrowLeftIcon />
-            <span className="text-sm font-medium">{mode === 'tutorial' ? 'Exit Practice' : 'Exit Studio'}</span>
+            <span className="text-sm font-medium">Return to Dashboard</span>
         </button>
         <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full border ${status === 'active' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-gray-50'}`}>
             <span className="text-[10px] font-bold uppercase tracking-wider">{mode === 'tutorial' ? 'Micro-Skill Practice' : 'Assessor Lab'}</span>
         </div>
       </header>
 
-      <main className="flex-grow flex flex-col items-center justify-center p-6 relative">
+      <main className="flex-grow flex flex-col items-center justify-center p-6 relative overflow-y-auto">
         <div className="max-w-xl w-full flex flex-col items-center gap-8">
-            <div className="text-center space-y-4">
+            <div className="text-center space-y-4 w-full">
                 {mode === 'tutorial' ? (
-                  <div className="space-y-2 mb-10">
+                  <div className="space-y-2 mb-6">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Micro-skill</p>
                       <h1 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase">
                           {practiceMode?.microSkill.label}
                       </h1>
                   </div>
                 ) : (
-                  <div className="space-y-2 mb-10">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Diagnostic Scenario</p>
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight leading-tight uppercase">
-                        {scenario.title}
-                    </h1>
+                  <div className="space-y-6 mb-6 text-left">
+                    <div className="text-center space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Diagnostic Scenario</p>
+                      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight leading-tight uppercase">
+                          {scenario.title}
+                      </h1>
+                    </div>
+                    
+                    <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 shadow-inner">
+                        <p className="text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+                            {scenario.description}
+                        </p>
+                    </div>
                   </div>
                 )}
             </div>
