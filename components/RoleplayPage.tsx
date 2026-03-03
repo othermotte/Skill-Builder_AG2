@@ -13,9 +13,9 @@ interface RoleplayPageProps {
   onSessionEnd: (sessionResult: PracticeSession, isDiagnostic?: boolean, isCompleted?: boolean) => void;
   onBackToDashboard: () => void;
   practiceMode?: {
-      microSkill: MicroSkill;
-      cuePrompt: string;
-      snapshot?: SkillSnapshot;
+    microSkill: MicroSkill;
+    cuePrompt: string;
+    snapshot?: SkillSnapshot;
   };
   mode?: 'diagnostic' | 'tutorial';
 }
@@ -26,9 +26,9 @@ const ArrowLeftIcon = () => (
   </svg>
 );
 
-export const RoleplayPage: React.FC<RoleplayPageProps> = ({ 
-    scenario, skills, currentUser,
-    onSessionEnd, onBackToDashboard, practiceMode, mode = 'diagnostic'
+export const RoleplayPage: React.FC<RoleplayPageProps> = ({
+  scenario, skills, currentUser,
+  onSessionEnd, onBackToDashboard, practiceMode, mode = 'diagnostic'
 }) => {
   const [showFeedbackConfirm, setShowFeedbackConfirm] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -36,7 +36,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   const [tutorInstruction, setTutorInstruction] = useState<string | null>(null);
 
   const targetSkill = skills.find(s => s.id === scenario.skillId);
-  
+
   useEffect(() => {
     if (mode === 'tutorial' && practiceMode) {
       getMicroSkillTutorInstruction().then(baseInstruction => {
@@ -48,11 +48,11 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
 - Criteria: ${practiceMode.microSkill.criteria?.join(', ') || 'Not specified'}
 - Evidence context: ${practiceMode.cuePrompt || 'N/A'}
         `;
-        
+
         const enriched = baseInstruction
           .replace('[micro-skill label]', practiceMode.microSkill.label)
           + "\n\n" + inputData;
-          
+
         setTutorInstruction(enriched);
       });
     }
@@ -67,15 +67,15 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
 
   const combinedInstruction = mode === 'tutorial' ? (tutorInstruction || 'You are a supportive leadership tutor.') : diagnosticInstruction;
 
-  const { 
-    status, 
-    connect, 
-    disconnect, 
-    volume, 
-    streamingText, 
-    transcript 
+  const {
+    status,
+    connect,
+    disconnect,
+    volume,
+    streamingText,
+    transcript
   } = useLiveSession({
-    apiKey: process.env.API_KEY as string,
+    apiKey: import.meta.env.VITE_GEMINI_API_KEY as string,
     voiceName: 'Kore',
     systemInstruction: combinedInstruction
   });
@@ -84,7 +84,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
     if (transcript.length > 0) {
       const lastEntry = transcript[transcript.length - 1];
       if (lastEntry.speaker === 'ai' && (
-        lastEntry.text.toLowerCase().includes('concludes our session') || 
+        lastEntry.text.toLowerCase().includes('concludes our session') ||
         lastEntry.text.toLowerCase().includes('concludes this session') ||
         lastEntry.text.toLowerCase().includes('concludes our tutorial session') ||
         lastEntry.text.toLowerCase().includes('ready to apply this in the field')
@@ -110,38 +110,38 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   };
 
   const handleGetFeedback = async () => {
-      setIsAnalyzing(true);
-      setShowFeedbackConfirm(false);
-      
-      try {
-          const response = await getFeedbackForTranscript(scenario, transcript, targetSkill?.name || 'Leadership', 'English');
-          
-           onSessionEnd({
-              id: '',
-              userId: currentUser.id,
-              scenarioId: scenario.id,
-              transcript: transcript,
-              feedback: response.text,
-              timestamp: new Date().toISOString(),
-              status: 'completed'
-          }, mode === 'diagnostic', isAiConcluded);
-      } catch (e) {
-          onSessionEnd({
-              id: '',
-              userId: currentUser.id,
-              scenarioId: scenario.id,
-              transcript: transcript,
-              feedback: JSON.stringify({ error: true }),
-              timestamp: new Date().toISOString(),
-              status: 'completed'
-          }, mode === 'diagnostic', isAiConcluded);
-      } finally {
-        setIsAnalyzing(false);
-      }
+    setIsAnalyzing(true);
+    setShowFeedbackConfirm(false);
+
+    try {
+      const response = await getFeedbackForTranscript(scenario, transcript, targetSkill?.name || 'Leadership', 'English');
+
+      onSessionEnd({
+        id: '',
+        userId: currentUser.id,
+        scenarioId: scenario.id,
+        transcript: transcript,
+        feedback: response.text,
+        timestamp: new Date().toISOString(),
+        status: 'completed'
+      }, mode === 'diagnostic', isAiConcluded);
+    } catch (e) {
+      onSessionEnd({
+        id: '',
+        userId: currentUser.id,
+        scenarioId: scenario.id,
+        transcript: transcript,
+        feedback: JSON.stringify({ error: true }),
+        timestamp: new Date().toISOString(),
+        status: 'completed'
+      }, mode === 'diagnostic', isAiConcluded);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleDiscardSession = () => {
-      onBackToDashboard();
+    onBackToDashboard();
   };
 
   /**
@@ -192,96 +192,96 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
 
   return (
     <div className="flex flex-col min-h-[100dvh] bg-white overflow-hidden relative">
-      
+
       <header className="flex-none h-16 px-4 md:px-6 border-b border-gray-100 flex items-center justify-between bg-white z-10">
         <button onClick={onBackToDashboard} className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600">
-            <ArrowLeftIcon />
-            <span className="text-sm font-medium">Return to Dashboard</span>
+          <ArrowLeftIcon />
+          <span className="text-sm font-medium">Return to Dashboard</span>
         </button>
         <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-full border ${status === 'active' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-gray-50'}`}>
-            <span className="text-[10px] font-bold uppercase tracking-wider">{mode === 'tutorial' ? 'Micro-Skill Practice' : 'Assessor Lab'}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider">{mode === 'tutorial' ? 'Micro-Skill Practice' : 'Assessor Lab'}</span>
         </div>
       </header>
 
       <main className="flex-grow flex flex-col items-center justify-center p-6 relative overflow-y-auto">
         <div className="max-w-xl w-full flex flex-col items-center gap-8">
-            <div className="text-center space-y-4 w-full">
-                {mode === 'tutorial' ? (
-                  <div className="space-y-2 mb-6">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Micro-skill</p>
-                      <h1 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase">
-                          {practiceMode?.microSkill.label}
-                      </h1>
-                  </div>
-                ) : (
-                  <div className="space-y-6 mb-6 text-left">
-                    <div className="text-center space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Diagnostic Scenario</p>
-                      <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight leading-tight uppercase">
-                          {scenario.title}
-                      </h1>
-                    </div>
-                    
-                    <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 shadow-inner">
-                        <p className="text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
-                            {scenario.description}
-                        </p>
-                    </div>
-                  </div>
-                )}
-            </div>
-
-            <div className="flex flex-col items-center w-full">
-                 {/* Main Single Instruction Area - Persists the AI message while pondering */}
-                 <div className="h-24 w-full flex items-center justify-center mb-10 relative">
-                      <p className={`text-lg font-bold text-center transition-all px-8 ${isNudge ? 'text-indigo-500 italic' : 'text-gray-900'}`}>
-                         {instructionAreaText}
-                      </p>
-                 </div>
-
-                <div className="relative group">
-                    <div 
-                        className={`absolute inset-0 rounded-full transition-all duration-700 ${isAiConcluded ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-50'}`}
-                        style={{ 
-                          opacity: (status === 'active' || status === 'connecting') ? (isAiConcluded ? 0.3 : 0.6) : 0, 
-                          transform: `scale(${1 + (volume / 80) + (isAiConcluded ? 0.2 : 0)})` 
-                        }}
-                    />
-                    <div className="flex flex-col items-center gap-6">
-                      <button
-                          onClick={(status === 'idle' || status === 'error') ? handleStart : handleStop}
-                          disabled={status === 'connecting' || isAnalyzing}
-                          className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') : 'bg-black'} text-white disabled:opacity-50`}
-                      >
-                          {(status === 'active' || status === 'connecting') ? <div className="w-8 h-8 bg-white rounded-sm" /> : <MicIcon className="w-10 h-10" />}
-                      </button>
-                      
-                      <div className="flex flex-col items-center text-center">
-                        <span className={`text-[10px] font-black uppercase tracking-[0.15em] leading-relaxed max-w-[240px] ${isAiConcluded ? 'text-indigo-600 animate-pulse' : 'text-gray-400'}`}>
-                          {belowMicText}
-                        </span>
-                        {status === 'active' && !isAiConcluded && (
-                           <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest">Tap square to stop</span>
-                        )}
-                      </div>
-                    </div>
+          <div className="text-center space-y-4 w-full">
+            {mode === 'tutorial' ? (
+              <div className="space-y-2 mb-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Micro-skill</p>
+                <h1 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase">
+                  {practiceMode?.microSkill.label}
+                </h1>
+              </div>
+            ) : (
+              <div className="space-y-6 mb-6 text-left">
+                <div className="text-center space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Diagnostic Scenario</p>
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight leading-tight uppercase">
+                    {scenario.title}
+                  </h1>
                 </div>
+
+                <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 shadow-inner">
+                  <p className="text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+                    {scenario.description}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center w-full">
+            {/* Main Single Instruction Area - Persists the AI message while pondering */}
+            <div className="h-24 w-full flex items-center justify-center mb-10 relative">
+              <p className={`text-lg font-bold text-center transition-all px-8 ${isNudge ? 'text-indigo-500 italic' : 'text-gray-900'}`}>
+                {instructionAreaText}
+              </p>
             </div>
+
+            <div className="relative group">
+              <div
+                className={`absolute inset-0 rounded-full transition-all duration-700 ${isAiConcluded ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-50'}`}
+                style={{
+                  opacity: (status === 'active' || status === 'connecting') ? (isAiConcluded ? 0.3 : 0.6) : 0,
+                  transform: `scale(${1 + (volume / 80) + (isAiConcluded ? 0.2 : 0)})`
+                }}
+              />
+              <div className="flex flex-col items-center gap-6">
+                <button
+                  onClick={(status === 'idle' || status === 'error') ? handleStart : handleStop}
+                  disabled={status === 'connecting' || isAnalyzing}
+                  className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') : 'bg-black'} text-white disabled:opacity-50`}
+                >
+                  {(status === 'active' || status === 'connecting') ? <div className="w-8 h-8 bg-white rounded-sm" /> : <MicIcon className="w-10 h-10" />}
+                </button>
+
+                <div className="flex flex-col items-center text-center">
+                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] leading-relaxed max-w-[240px] ${isAiConcluded ? 'text-indigo-600 animate-pulse' : 'text-gray-400'}`}>
+                    {belowMicText}
+                  </span>
+                  {status === 'active' && !isAiConcluded && (
+                    <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest">Tap square to stop</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
       {showFeedbackConfirm && (
-            <div className="fixed inset-0 bg-white/80 backdrop-blur-md flex items-center justify-center z-50 p-6">
-                <div className="bg-white rounded-3xl p-8 max-sm w-full border border-gray-200 shadow-2xl animate-in zoom-in-95 duration-300">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{mode === 'tutorial' ? 'Sync Practice' : 'Sync Evidence'}</h3>
-                    <p className="text-gray-500 mb-8 text-sm">Session recording stopped. Would you like to analyze this interaction for your capability profile?</p>
-                    <div className="flex flex-col gap-3">
-                        <button onClick={handleGetFeedback} className="w-full bg-black text-white py-4 rounded-2xl font-bold text-sm">Analyze Interaction</button>
-                        <button onClick={handleDiscardSession} className="w-full text-gray-400 py-4 font-bold text-xs">Discard Interaction</button>
-                    </div>
-                </div>
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-md flex items-center justify-center z-50 p-6">
+          <div className="bg-white rounded-3xl p-8 max-sm w-full border border-gray-200 shadow-2xl animate-in zoom-in-95 duration-300">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{mode === 'tutorial' ? 'Sync Practice' : 'Sync Evidence'}</h3>
+            <p className="text-gray-500 mb-8 text-sm">Session recording stopped. Would you like to analyze this interaction for your capability profile?</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleGetFeedback} className="w-full bg-black text-white py-4 rounded-2xl font-bold text-sm">Analyze Interaction</button>
+              <button onClick={handleDiscardSession} className="w-full text-gray-400 py-4 font-bold text-xs">Discard Interaction</button>
             </div>
-        )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

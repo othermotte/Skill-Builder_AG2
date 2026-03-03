@@ -1,11 +1,11 @@
 
 import { GoogleGenAI, Type } from '@google/genai';
 import type { TranscriptEntry, Scenario, FeedbackAnalysis, PracticeAttempt, SkillLibrary, SkillSnapshot } from '../types';
-import { 
+import {
   getGlobalAssessorProtocol,
   getSkillLibrary
 } from './firebase';
-import { 
+import {
   SKILL_ID_ADAPTIVE,
   SKILL_ID_COGNITIVE,
   SKILL_ID_SOCIAL,
@@ -13,7 +13,7 @@ import {
   SKILL_ID_CHANGE
 } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
 
 /**
  * Custom error class to handle rate limits and quota issues
@@ -34,52 +34,52 @@ export const getFeedbackForTranscript = async (
   skillName: string,
   language: string
 ): Promise<{ text: string }> => {
-    if (transcript.length === 0) throw new Error("Transcript is empty.");
+  if (transcript.length === 0) throw new Error("Transcript is empty.");
 
-    const protocol = await getGlobalAssessorProtocol();
-    const formattedTranscript = transcript
-        .map((entry, idx) => `[Message ${idx + 1}] ${entry.speaker === 'user' ? 'PARTICIPANT' : 'ASSESSOR'}: ${entry.text}`)
-        .join('\n\n');
+  const protocol = await getGlobalAssessorProtocol();
+  const formattedTranscript = transcript
+    .map((entry, idx) => `[Message ${idx + 1}] ${entry.speaker === 'user' ? 'PARTICIPANT' : 'ASSESSOR'}: ${entry.text}`)
+    .join('\n\n');
 
-    const responseSchema = {
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      validity: {
         type: Type.OBJECT,
         properties: {
-          validity: {
-            type: Type.OBJECT,
-            properties: {
-              is_valid: { type: Type.BOOLEAN },
-              reason: { type: Type.STRING }
-            },
-            required: ["is_valid", "reason"]
-          },
-          scores: {
-            type: Type.OBJECT,
-            properties: {
-              [SKILL_ID_ADAPTIVE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
-              [SKILL_ID_COGNITIVE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
-              [SKILL_ID_SOCIAL]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
-              [SKILL_ID_ETHICS]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
-              [SKILL_ID_CHANGE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] }
-            },
-            required: [SKILL_ID_ADAPTIVE, SKILL_ID_COGNITIVE, SKILL_ID_SOCIAL, SKILL_ID_ETHICS, SKILL_ID_CHANGE]
-          },
-          summary: {
-            type: Type.OBJECT,
-            properties: {
-              strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-              areas_for_improvement: { type: Type.ARRAY, items: { type: Type.STRING } },
-              overall_summary: { type: Type.STRING }
-            },
-            required: ["strengths", "areas_for_improvement", "overall_summary"]
-          },
-          total_score: { type: Type.NUMBER },
-          leadership_potential: { type: Type.STRING },
-          next_review_days: { type: Type.NUMBER }
+          is_valid: { type: Type.BOOLEAN },
+          reason: { type: Type.STRING }
         },
-        required: ["validity", "scores", "summary", "total_score", "leadership_potential", "next_review_days"]
-    };
+        required: ["is_valid", "reason"]
+      },
+      scores: {
+        type: Type.OBJECT,
+        properties: {
+          [SKILL_ID_ADAPTIVE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
+          [SKILL_ID_COGNITIVE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
+          [SKILL_ID_SOCIAL]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
+          [SKILL_ID_ETHICS]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] },
+          [SKILL_ID_CHANGE]: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, justification: { type: Type.STRING } }, required: ["score", "justification"] }
+        },
+        required: [SKILL_ID_ADAPTIVE, SKILL_ID_COGNITIVE, SKILL_ID_SOCIAL, SKILL_ID_ETHICS, SKILL_ID_CHANGE]
+      },
+      summary: {
+        type: Type.OBJECT,
+        properties: {
+          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+          areas_for_improvement: { type: Type.ARRAY, items: { type: Type.STRING } },
+          overall_summary: { type: Type.STRING }
+        },
+        required: ["strengths", "areas_for_improvement", "overall_summary"]
+      },
+      total_score: { type: Type.NUMBER },
+      leadership_potential: { type: Type.STRING },
+      next_review_days: { type: Type.NUMBER }
+    },
+    required: ["validity", "scores", "summary", "total_score", "leadership_potential", "next_review_days"]
+  };
 
-    const prompt = `
+  const prompt = `
         ${protocol}
 
         ### CONTEXT (THE CASE BEING ASSESSED)
@@ -89,50 +89,50 @@ export const getFeedbackForTranscript = async (
         ### TRANSCRIPT TO ANALYZE
         ${formattedTranscript}
     `;
-    
-    try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-pro-preview',
-          contents: prompt,
-          config: { 
-            thinkingConfig: { thinkingBudget: 4000 },
-            responseMimeType: "application/json",
-            responseSchema: responseSchema
-          }
-      });
-      return { text: response.text || "{}" };
-    } catch (error: any) {
-      if (error?.message?.includes('429')) {
-        throw new GeminiApiError(429, "The Assessment Studio is currently at capacity. Please wait a few moments before submitting again.");
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 4000 },
+        responseMimeType: "application/json",
+        responseSchema: responseSchema
       }
-      throw error;
+    });
+    return { text: response.text || "{}" };
+  } catch (error: any) {
+    if (error?.message?.includes('429')) {
+      throw new GeminiApiError(429, "The Assessment Studio is currently at capacity. Please wait a few moments before submitting again.");
     }
+    throw error;
+  }
 };
 
 /**
  * SKILL SUGGESTIONS
  */
 export const getMicroSkillSuggestions = async (
-    transcript: TranscriptEntry[],
-    feedback: FeedbackAnalysis
+  transcript: TranscriptEntry[],
+  feedback: FeedbackAnalysis
 ): Promise<any[]> => {
-    const library = await getSkillLibrary();
-    
-    const strippedLibrary = library.skill_groups.map(group => ({
-        id: group.id,
-        label: group.label,
-        skills: group.skills.map(s => ({
-            id: s.id,
-            label: s.name,
-            micro_skills: s.micro_skills.map(ms => ({ id: ms.id, label: ms.label }))
-        }))
-    }));
+  const library = await getSkillLibrary();
 
-    const formattedTranscript = transcript
-        .map((entry) => `${entry.speaker.toUpperCase()}: ${entry.text}`)
-        .join('\n');
+  const strippedLibrary = library.skill_groups.map(group => ({
+    id: group.id,
+    label: group.label,
+    skills: group.skills.map(s => ({
+      id: s.id,
+      label: s.name,
+      micro_skills: s.micro_skills.map(ms => ({ id: ms.id, label: ms.label }))
+    }))
+  }));
 
-    const prompt = `
+  const formattedTranscript = transcript
+    .map((entry) => `${entry.speaker.toUpperCase()}: ${entry.text}`)
+    .join('\n');
+
+  const prompt = `
         Based on the transcript and assessment below, suggest 2-3 specific micro-skills from the provided library that this learner should practice next.
         
         ### CRITICAL INSTRUCTIONS:
@@ -165,35 +165,35 @@ export const getMicroSkillSuggestions = async (
         }
     `;
 
-    try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: prompt,
-          config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                  type: Type.ARRAY,
-                  items: {
-                      type: Type.OBJECT,
-                      properties: {
-                          groupId: { type: Type.STRING },
-                          groupLabel: { type: Type.STRING },
-                          skillId: { type: Type.STRING },
-                          skillLabel: { type: Type.STRING },
-                          microSkillId: { type: Type.STRING },
-                          microSkillLabel: { type: Type.STRING },
-                          reason: { type: Type.STRING }
-                      },
-                      required: ["groupId", "groupLabel", "skillId", "skillLabel", "microSkillId", "microSkillLabel", "reason"]
-                  }
-              }
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              groupId: { type: Type.STRING },
+              groupLabel: { type: Type.STRING },
+              skillId: { type: Type.STRING },
+              skillLabel: { type: Type.STRING },
+              microSkillId: { type: Type.STRING },
+              microSkillLabel: { type: Type.STRING },
+              reason: { type: Type.STRING }
+            },
+            required: ["groupId", "groupLabel", "skillId", "skillLabel", "microSkillId", "microSkillLabel", "reason"]
           }
-      });
-      return JSON.parse(response.text || "[]");
-    } catch (error: any) {
-      console.error("Suggestions Error:", error);
-      return [];
-    }
+        }
+      }
+    });
+    return JSON.parse(response.text || "[]");
+  } catch (error: any) {
+    console.error("Suggestions Error:", error);
+    return [];
+  }
 };
 
 /**
@@ -204,7 +204,7 @@ export const generateSkillSnapshot = async (
   evidence: string,
   history: string
 ): Promise<SkillSnapshot> => {
-    const prompt = `
+  const prompt = `
         Generate a concise, learner-facing leadership briefing for the following micro-skill.
         
         Micro-skill: "${microSkillLabel}"
@@ -228,68 +228,68 @@ export const generateSkillSnapshot = async (
         5. "firstChallenge" should be a realistic line from a colleague or stakeholder that needs a response using the micro-skill.
     `;
 
-    try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview', 
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    concept: { type: Type.STRING },
-                    starterStems: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    watchFor: { type: Type.STRING },
-                    successIndicators: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    firstChallenge: { type: Type.STRING }
-                },
-                required: ["concept", "starterStems", "watchFor", "successIndicators", "firstChallenge"]
-            }
-          }
-      });
-      return JSON.parse(response.text || "{}") as SkillSnapshot;
-    } catch (error: any) {
-      return { 
-        concept: "Unable to generate briefing.", 
-        starterStems: ["I'm curious about...", "I might be assuming..."], 
-        watchFor: "Avoid leading questions.", 
-        successIndicators: ["They share more info."],
-        firstChallenge: "A colleague says: 'We should just go with my plan, right?'"
-      };
-    }
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            concept: { type: Type.STRING },
+            starterStems: { type: Type.ARRAY, items: { type: Type.STRING } },
+            watchFor: { type: Type.STRING },
+            successIndicators: { type: Type.ARRAY, items: { type: Type.STRING } },
+            firstChallenge: { type: Type.STRING }
+          },
+          required: ["concept", "starterStems", "watchFor", "successIndicators", "firstChallenge"]
+        }
+      }
+    });
+    return JSON.parse(response.text || "{}") as SkillSnapshot;
+  } catch (error: any) {
+    return {
+      concept: "Unable to generate briefing.",
+      starterStems: ["I'm curious about...", "I might be assuming..."],
+      watchFor: "Avoid leading questions.",
+      successIndicators: ["They share more info."],
+      firstChallenge: "A colleague says: 'We should just go with my plan, right?'"
+    };
+  }
 };
 
 /**
  * PRACTICE REFLECTION
  */
 export const analyzePracticeReflection = async (
-    attempt: PracticeAttempt,
-    microSkillLabel: string
+  attempt: PracticeAttempt,
+  microSkillLabel: string
 ): Promise<any> => {
-    const formattedTranscript = attempt.transcript
-        .map((entry) => `[${entry.speaker.toUpperCase()}]: ${entry.text}`)
-        .join('\n');
+  const formattedTranscript = attempt.transcript
+    .map((entry) => `[${entry.speaker.toUpperCase()}]: ${entry.text}`)
+    .join('\n');
 
-    try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview', 
-          contents: `Analyze this transcript for the specific application of the micro-skill: "${microSkillLabel}".\n\nTranscript:\n${formattedTranscript}`,
-          config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                  type: Type.OBJECT,
-                  properties: {
-                      detected: { type: Type.BOOLEAN },
-                      evidence: { type: Type.STRING },
-                      impact: { type: Type.STRING },
-                      adjustment: { type: Type.STRING }
-                  },
-                  required: ["detected", "evidence", "impact", "adjustment"]
-              }
-          }
-      });
-      return JSON.parse(response.text || "{}");
-    } catch (error: any) {
-      return { detected: false, evidence: "Error", impact: "N/A", adjustment: "N/A" };
-    }
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Analyze this transcript for the specific application of the micro-skill: "${microSkillLabel}".\n\nTranscript:\n${formattedTranscript}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            detected: { type: Type.BOOLEAN },
+            evidence: { type: Type.STRING },
+            impact: { type: Type.STRING },
+            adjustment: { type: Type.STRING }
+          },
+          required: ["detected", "evidence", "impact", "adjustment"]
+        }
+      }
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (error: any) {
+    return { detected: false, evidence: "Error", impact: "N/A", adjustment: "N/A" };
+  }
 };
