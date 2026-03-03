@@ -9,6 +9,8 @@ RUN npm install
 
 # Build the application
 COPY . .
+ARG GEMINI_API_KEY
+ENV GEMINI_API_KEY=$GEMINI_API_KEY
 RUN npm run build
 
 # Runtime stage
