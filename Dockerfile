@@ -9,8 +9,9 @@ RUN npm install
 
 # Build the application
 COPY . .
-ARG GEMINI_API_KEY
-ENV GEMINI_API_KEY=$GEMINI_API_KEY
+ARG VITE_GEMINI_API_KEY
+ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
+RUN echo "Diagnostic: VITE_GEMINI_API_KEY length is ${#VITE_GEMINI_API_KEY}"
 RUN npm run build
 
 # Runtime stage
