@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env
+build_output.txt
+build_output_2.txt
+/dist
+package-lock.json
