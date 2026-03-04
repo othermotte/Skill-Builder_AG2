@@ -15,9 +15,9 @@ interface UseLiveSessionProps {
 export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLiveSessionProps) => {
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [volume, setVolume] = useState(0);
-  const [streamingText, setStreamingText] = useState(''); 
+  const [streamingText, setStreamingText] = useState('');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  
+
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -27,13 +27,13 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
   const analyserRef = useRef<AnalyserNode | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  
+
   const userTranscriptBuffer = useRef<string>('');
   const aiTranscriptBuffer = useRef<string>('');
 
   const stopAllAudio = useCallback(() => {
     audioSourcesRef.current.forEach(source => {
-      try { source.stop(); } catch(e) {}
+      try { source.stop(); } catch (e) { }
     });
     audioSourcesRef.current.clear();
     nextStartTimeRef.current = 0;
@@ -53,7 +53,7 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
       if (audioContextRef.current.state !== 'closed') {
         try {
           await audioContextRef.current.close();
-        } catch(e) {}
+        } catch (e) { }
       }
       audioContextRef.current = null;
     }
@@ -81,9 +81,9 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
 
   const connect = useCallback(async () => {
     if (!apiKey) {
-        console.error("LiveSession: No API Key provided.");
-        setStatus('error');
-        return;
+      console.error("LiveSession: No API Key provided.");
+      setStatus('error');
+      return;
     }
 
     try {
@@ -99,37 +99,49 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
       audioContextRef.current = ctx;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(err => {
-          console.error("LiveSession: Microphone access denied", err);
-          throw err;
+        console.error("LiveSession: Microphone access denied", err);
+        throw err;
       });
       mediaStreamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey });
-      
+
       const combinedInstruction = `
         ${globalOS}
 
         ${systemInstruction}
         
-        Wait for the participant to lead.
+        The user has just connected to the voice session. Your first action MUST be to greet them warmly, confirm you are ready, and ask them to begin. Do NOT wait for them to speak first.
       `;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-              console.debug("LiveSession: Connection opened.");
-              setStatus('active');
+            console.debug("LiveSession: Connection opened.");
+            setStatus('active');
+            // Automatically send an invisible text prompt to kick off the AI's greeting
+            sessionPromiseRef.current?.then((session) => {
+              try {
+                session.send({
+                  clientContent: {
+                    turns: [{ role: 'user', parts: [{ text: 'Hello. I am ready to begin the scenario. Please greet me.' }] }]
+                  }
+                });
+              } catch (e) {
+                console.warn("Failed to send initial greeting trigger", e);
+              }
+            });
           },
           onmessage: (msg) => handleServerMessage(msg),
           onclose: (e) => {
-              console.debug("LiveSession: Connection closed.", e);
-              setStatus('idle');
+            console.debug("LiveSession: Connection closed.", e);
+            setStatus('idle');
           },
-          onerror: (e) => { 
-              console.error("LiveSession: Connection error.", e);
-              setStatus('error'); 
-              cleanup(); 
+          onerror: (e) => {
+            console.error("LiveSession: Connection error.", e);
+            setStatus('error');
+            cleanup();
           }
         },
         config: {
@@ -149,16 +161,16 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyserRef.current = analyser;
-      
+
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(inputData, 24000); 
+        const downsampled = downsampleTo16k(inputData, 24000);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
           session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
-            console.warn("LiveSession: Failed to send realtime input", err);
+          console.warn("LiveSession: Failed to send realtime input", err);
         });
       };
 

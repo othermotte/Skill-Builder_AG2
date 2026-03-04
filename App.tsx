@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User as FirebaseAuthUser } from 'firebase/auth';
-import { User, Scenario, Skill, PracticeSession, Role, FeedbackAnalysis, PracticeAttempt, MicroSkill, SkillSnapshot } from './types';
+import { User, Scenario, Skill, PracticeSession, Role, FeedbackAnalysis, PracticeAttempt, MicroSkill, SkillSnapshot, SkillLibrary } from './types';
 import {
   logout,
   getUser,
@@ -23,6 +23,7 @@ import { auth } from './firebaseConfig';
 import { generateSkillSnapshot, analyzePracticeReflection } from './services/geminiService';
 
 import { LoginPage } from './components/LoginPage';
+import { NetworkIcon } from './components/icons/NetworkIcon';
 import { DashboardPage } from './components/DashboardPage';
 import { RoleplayPage } from './components/RoleplayPage';
 import { FeedbackPage } from './components/FeedbackPage';
@@ -38,6 +39,7 @@ const App: React.FC = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [practiceSessions, setPracticeSessions] = useState<PracticeSession[]>([]);
   const [practiceAttempts, setPracticeAttempts] = useState<PracticeAttempt[]>([]);
+  const [appLibrary, setAppLibrary] = useState<SkillLibrary | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
 
@@ -45,7 +47,7 @@ const App: React.FC = () => {
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [currentPracticeSession, setCurrentPracticeSession] = useState<PracticeSession | null>(null);
   const [feedbackInitialView, setFeedbackInitialView] = useState<'feedback' | 'choose_focus'>('feedback');
-  
+
   const [activePracticeAttempt, setActivePracticeAttempt] = useState<Partial<PracticeAttempt> | null>(null);
   const [activeMicroSkill, setActiveMicroSkill] = useState<MicroSkill | null>(null);
   const [snapshot, setSnapshot] = useState<SkillSnapshot | null>(null);
@@ -70,17 +72,19 @@ const App: React.FC = () => {
       await ensureDbInitialized();
       const loadedAppUser = await getUser(firebaseUser.uid, { email: firebaseUser.email! });
       if (!loadedAppUser) throw new Error(`User profile initialization failed.`);
-      const [loadedScenarios, loadedSkills, loadedSessions, loadedAttempts] = await Promise.all([
+      const [loadedScenarios, loadedSkills, loadedSessions, loadedAttempts, loadedLibrary] = await Promise.all([
         getScenarios(),
         getSkills(),
         getPracticeSessions(firebaseUser.uid),
         getPracticeAttempts(firebaseUser.uid),
+        getSkillLibrary(),
       ]);
       setAppUser(loadedAppUser);
       setScenarios(loadedScenarios);
       setSkills(loadedSkills);
       setPracticeSessions(loadedSessions);
       setPracticeAttempts(loadedAttempts);
+      setAppLibrary(loadedLibrary);
     } catch (error: any) {
       console.error("Data load error:", error);
       setDataLoadError(error.message);
@@ -112,97 +116,97 @@ const App: React.FC = () => {
   };
 
   const handleBeginPracticeLoop = async (groupId: string, microSkillId: string, reason: string) => {
-      if (!appUser || !currentPracticeSession || !selectedScenario) return;
-      
-      logEvent(appUser.id, 'skill_selected', { groupId, microSkillId, reason });
-      
-      const library = await getSkillLibrary();
-      const skillGroup = library.skill_groups.find(g => g.id === groupId);
-      const ms = skillGroup?.skills.flatMap(s => s.micro_skills).find(m => m.id === microSkillId);
-      
-      if (!ms) {
-          console.error("MicroSkill not found:", microSkillId);
-          return;
-      }
+    if (!appUser || !currentPracticeSession || !selectedScenario) return;
 
-      setActiveMicroSkill(ms as MicroSkill);
-      
-      const feedback: FeedbackAnalysis = JSON.parse(currentPracticeSession.feedback!);
-      const snapshotData = await generateSkillSnapshot(ms.label, feedback.summary.overall_summary || "None", appUser.growth_memory || "None");
-      setSnapshot(snapshotData);
-      
-      setActivePracticeAttempt({
-          userId: appUser.id,
-          parentSessionId: currentPracticeSession.id,
-          scenarioId: selectedScenario.id, // Anchor to scenario
-          skillId: groupId,
-          microSkillId,
-          selectionReason: reason,
-          snapshotContent: JSON.stringify(snapshotData),
-          timestamp: new Date().toISOString()
-      });
+    logEvent(appUser.id, 'skill_selected', { groupId, microSkillId, reason });
 
-      setPracticeType('tutorial');
-      setActivePage('snapshot');
-      logEvent(appUser.id, 'snapshot_delivered', { microSkillId });
+    const library = await getSkillLibrary();
+    const skillGroup = library.skill_groups.find(g => g.id === groupId);
+    const ms = skillGroup?.skills.flatMap(s => s.micro_skills).find(m => m.id === microSkillId);
+
+    if (!ms) {
+      console.error("MicroSkill not found:", microSkillId);
+      return;
+    }
+
+    setActiveMicroSkill(ms as MicroSkill);
+
+    const feedback: FeedbackAnalysis = JSON.parse(currentPracticeSession.feedback!);
+    const snapshotData = await generateSkillSnapshot(ms.label, feedback.summary.overall_summary || "None", appUser.growth_memory || "None");
+    setSnapshot(snapshotData);
+
+    setActivePracticeAttempt({
+      userId: appUser.id,
+      parentSessionId: currentPracticeSession.id,
+      scenarioId: selectedScenario.id, // Anchor to scenario
+      skillId: groupId,
+      microSkillId,
+      selectionReason: reason,
+      snapshotContent: JSON.stringify(snapshotData),
+      timestamp: new Date().toISOString()
+    });
+
+    setPracticeType('tutorial');
+    setActivePage('snapshot');
+    logEvent(appUser.id, 'snapshot_delivered', { microSkillId });
   };
 
   const handlePracticeLoopStart = () => {
-      setActivePage('roleplay');
-      logEvent(appUser?.id!, 'practice_loop_started', { microSkillId: activeMicroSkill?.id });
+    setActivePage('roleplay');
+    logEvent(appUser?.id!, 'practice_loop_started', { microSkillId: activeMicroSkill?.id });
   };
 
   const handleSessionEnd = async (completedSession: PracticeSession, isDiagnostic = true, isCompleted = false) => {
     try {
-        const savedSession = await savePracticeSession(completedSession);
-        setPracticeSessions(prev => [savedSession, ...prev]);
-        setCurrentPracticeSession(savedSession);
-        
-        if (completedSession.feedback && appUser) {
-            try {
-                const feedbackData: FeedbackAnalysis = JSON.parse(completedSession.feedback);
-                const updatedUser = await updateUserMemory(appUser.id, feedbackData, completedSession.scenarioId);
-                if (updatedUser) setAppUser(updatedUser);
-            } catch (e) {}
+      const savedSession = await savePracticeSession(completedSession);
+      setPracticeSessions(prev => [savedSession, ...prev]);
+      setCurrentPracticeSession(savedSession);
+
+      if (completedSession.feedback && appUser) {
+        try {
+          const feedbackData: FeedbackAnalysis = JSON.parse(completedSession.feedback);
+          const updatedUser = await updateUserMemory(appUser.id, feedbackData, completedSession.scenarioId);
+          if (updatedUser) setAppUser(updatedUser);
+        } catch (e) { }
+      }
+
+      if (activeMicroSkill && activePracticeAttempt) {
+        const attemptPayload: Partial<PracticeAttempt> = {
+          ...activePracticeAttempt,
+          transcript: completedSession.transcript
+        };
+
+        // Mark as completed if the tutor reached its closing message
+        if (isCompleted) {
+          attemptPayload.completedAt = new Date().toISOString();
         }
 
-        if (activeMicroSkill && activePracticeAttempt) {
-            const attemptPayload: Partial<PracticeAttempt> = {
-                ...activePracticeAttempt,
-                transcript: completedSession.transcript
-            };
-            
-            // Mark as completed if the tutor reached its closing message
-            if (isCompleted) {
-              attemptPayload.completedAt = new Date().toISOString();
-            }
+        const savedAttempt = await savePracticeAttempt(attemptPayload);
+        setPracticeAttempts(prev => [savedAttempt, ...prev.filter(a => a.id !== savedAttempt.id)]);
 
-            const savedAttempt = await savePracticeAttempt(attemptPayload);
-            setPracticeAttempts(prev => [savedAttempt, ...prev.filter(a => a.id !== savedAttempt.id)]);
-            
-            setIsLoadingData(true);
-            const reflectionAnalysis = await analyzePracticeReflection(savedAttempt, activeMicroSkill.label);
-            const finalAttempt = await savePracticeAttempt({
-                ...savedAttempt,
-                reflection: reflectionAnalysis
-            });
-            setActivePracticeAttempt(finalAttempt);
-            setPracticeAttempts(prev => [finalAttempt, ...prev.filter(a => a.id !== finalAttempt.id)]);
-            setActivePage('reflection');
-            setIsLoadingData(false);
-            logEvent(appUser.id, 'practice_completed', { attemptId: finalAttempt.id, reflection: reflectionAnalysis, isCompleted });
-            return;
-        }
+        setIsLoadingData(true);
+        const reflectionAnalysis = await analyzePracticeReflection(savedAttempt, activeMicroSkill.label);
+        const finalAttempt = await savePracticeAttempt({
+          ...savedAttempt,
+          reflection: reflectionAnalysis
+        });
+        setActivePracticeAttempt(finalAttempt);
+        setPracticeAttempts(prev => [finalAttempt, ...prev.filter(a => a.id !== finalAttempt.id)]);
+        setActivePage('reflection');
+        setIsLoadingData(false);
+        logEvent(appUser.id, 'practice_completed', { attemptId: finalAttempt.id, reflection: reflectionAnalysis, isCompleted });
+        return;
+      }
 
     } catch (error) {
-        console.error("Error saving session:", error);
+      console.error("Error saving session:", error);
     }
-    
+
     if (isDiagnostic) {
-        setFeedbackInitialView('feedback'); // Always show Rubric after a fresh scenario
-        setActivePage('feedback');
+      setFeedbackInitialView('feedback'); // Always show Rubric after a fresh scenario
+      setActivePage('feedback');
     } else {
-        setActivePage('dashboard');
+      setActivePage('dashboard');
     }
   };
 
@@ -220,72 +224,81 @@ const App: React.FC = () => {
     if (dataLoadError) return <div className="p-12 text-center text-rose-500 font-bold">{dataLoadError}</div>;
     if (!appUser) return renderLoader("Finalizing...");
 
-    switch(activePage) {
+    switch (activePage) {
       case 'dashboard':
-        return <DashboardPage 
-                  currentUser={appUser} scenarios={scenarios} skills={skills} 
-                  practiceSessions={practiceSessions}
-                  practiceAttempts={practiceAttempts}
-                  onStartPractice={handleStartPractice}
-                  onSaveScenario={saveScenario} onDeleteScenario={deleteScenario}
-                  onUserUpdate={loadAppData}
-                  onViewHistory={() => setActivePage('history')}
-                  onViewSessionFeedback={(s, initialView = 'feedback') => {
-                    const scenario = scenarios.find(sc => sc.id === s.scenarioId);
-                    setSelectedScenario(scenario || null);
-                    setCurrentPracticeSession(s);
-                    setFeedbackInitialView(initialView);
-                    setActivePage('feedback');
-                  }}
-               />;
+        return <DashboardPage
+          currentUser={appUser} scenarios={scenarios} skills={skills}
+          practiceSessions={practiceSessions}
+          practiceAttempts={practiceAttempts}
+          appLibrary={appLibrary}
+          onStartPractice={handleStartPractice}
+          onSaveScenario={saveScenario} onDeleteScenario={deleteScenario}
+          onUserUpdate={loadAppData}
+          onViewHistory={() => setActivePage('history')}
+          onViewSessionFeedback={(s, initialView = 'feedback') => {
+            const scenario = scenarios.find(sc => sc.id === s.scenarioId);
+            setSelectedScenario(scenario || null);
+            setCurrentPracticeSession(s);
+            setFeedbackInitialView(initialView);
+            setActivePage('feedback');
+          }}
+        />;
       case 'roleplay':
-        return selectedScenario ? <RoleplayPage 
-                  scenario={selectedScenario} skills={skills} currentUser={appUser}
-                  onSessionEnd={handleSessionEnd}
-                  onBackToDashboard={() => setActivePage('dashboard')}
-                  practiceMode={activeMicroSkill ? { microSkill: activeMicroSkill, cuePrompt: activeMicroSkill.cue || '', snapshot: snapshot || undefined } : undefined}
-                  mode={practiceType}
-                /> : null;
+        return selectedScenario ? <RoleplayPage
+          scenario={selectedScenario} skills={skills} currentUser={appUser}
+          onSessionEnd={handleSessionEnd}
+          onBackToDashboard={() => setActivePage('dashboard')}
+          practiceMode={activeMicroSkill ? { microSkill: activeMicroSkill, cuePrompt: activeMicroSkill.cue || '', snapshot: snapshot || undefined } : undefined}
+          mode={practiceType}
+        /> : null;
       case 'feedback':
         if (!currentPracticeSession || !selectedScenario) {
-            setActivePage('dashboard');
-            return null;
+          setActivePage('dashboard');
+          return null;
         }
         return <FeedbackPage
-                  practiceSession={currentPracticeSession} scenario={selectedScenario}
-                  skills={skills} onBackToDashboard={() => setActivePage('dashboard')}
-                  onBeginPracticeLoop={handleBeginPracticeLoop}
-                  initialView={feedbackInitialView}
-               />;
+          practiceSession={currentPracticeSession} scenario={selectedScenario}
+          skills={skills} practiceAttempts={practiceAttempts}
+          onBackToDashboard={() => setActivePage('dashboard')}
+          onViewHistory={() => setActivePage('history')}
+          onBeginPracticeLoop={handleBeginPracticeLoop}
+          initialView={feedbackInitialView}
+          onSessionUpdate={(updatedSession) => {
+            setCurrentPracticeSession(updatedSession);
+            setPracticeSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+          }}
+        />;
       case 'snapshot':
         return (activeMicroSkill && snapshot) ? <SkillSnapshotView
-                  microSkill={activeMicroSkill}
-                  snapshot={snapshot}
-                  reason={activePracticeAttempt?.selectionReason || ""}
-                  onStartPractice={handlePracticeLoopStart}
-                  onPause={() => setActivePage('dashboard')}
-                /> : null;
+          microSkill={activeMicroSkill}
+          snapshot={snapshot}
+          reason={activePracticeAttempt?.selectionReason || ""}
+          onStartPractice={handlePracticeLoopStart}
+          onPause={() => setActivePage('dashboard')}
+        /> : null;
       case 'reflection':
         return activePracticeAttempt?.reflection ? <ReflectionView
-                  analysis={activePracticeAttempt.reflection}
-                  onNextStep={(choice) => {
-                      logEvent(appUser.id, 'next_step_chosen', { choice });
-                      if (choice === 'repeat') setActivePage('snapshot');
-                      else setActivePage('dashboard');
-                  }}
-                /> : null;
+          analysis={activePracticeAttempt.reflection}
+          onNextStep={(choice) => {
+            logEvent(appUser.id, 'next_step_chosen', { choice });
+            if (choice === 'repeat') setActivePage('snapshot');
+            else setActivePage('dashboard');
+          }}
+        /> : null;
       case 'history':
-        return <HistoryPage 
-                  practiceSessions={practiceSessions} scenarios={scenarios} skills={skills}
-                  onViewItem={(s) => { 
-                      const scenario = scenarios.find(sc => sc.id === s.scenarioId);
-                      setSelectedScenario(scenario || null); 
-                      setCurrentPracticeSession(s); 
-                      setFeedbackInitialView('feedback');
-                      setActivePage('feedback'); 
-                  }}
-                  onDeleteItem={async (id) => { await deletePracticeSession(id); setPracticeSessions(prev => prev.filter(ps => ps.id !== id)); }}
-               />;
+        return <HistoryPage
+          practiceSessions={practiceSessions} scenarios={scenarios} skills={skills}
+          practiceAttempts={practiceAttempts}
+          appLibrary={appLibrary}
+          onViewItem={(s) => {
+            const scenario = scenarios.find(sc => sc.id === s.scenarioId);
+            setSelectedScenario(scenario || null);
+            setCurrentPracticeSession(s);
+            setFeedbackInitialView('feedback');
+            setActivePage('feedback');
+          }}
+          onDeleteItem={async (id) => { await deletePracticeSession(id); setPracticeSessions(prev => prev.filter(ps => ps.id !== id)); }}
+        />;
       default:
         return null;
     }
@@ -297,10 +310,10 @@ const App: React.FC = () => {
         <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-gray-200 h-16 flex items-center w-full">
           <div className="max-w-7xl mx-auto w-full px-4 flex justify-between items-center">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActivePage('dashboard')}>
-                <div className="bg-black p-1.5 rounded-lg text-white">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M10 2v7.31l-4.5 8.437a2 2 0 0 0 1.76 2.938h9.48a2 2 0 0 0 1.76-2.938l-4.5-8.437V2"/><path d="M8.5 2h7"/><path d="M7 15h10"/></svg>
-                </div>
-                <h1 className="text-sm font-bold tracking-tight uppercase">Skill Builder</h1>
+              <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600 flex items-center justify-center">
+                <NetworkIcon className="w-5 h-5" />
+              </div>
+              <h1 className="text-sm font-bold tracking-tight uppercase">Skill Builder</h1>
             </div>
             <nav className="flex items-center gap-6">
               <button onClick={() => setActivePage('dashboard')} className={`text-xs font-black uppercase tracking-widest ${activePage === 'dashboard' ? 'text-black' : 'text-gray-400'}`}>Practice</button>
