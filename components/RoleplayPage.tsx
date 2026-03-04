@@ -161,7 +161,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
     instructionAreaText = 'Connection error. Check mic access.';
     belowMicText = 'Tap to retry';
   } else if (status === 'connecting') {
-    instructionAreaText = "Warming up the studio...";
+    instructionAreaText = "Warming up...";
     belowMicText = 'Connecting...';
   } else if (status === 'active') {
     if (isAiConcluded) {
@@ -243,7 +243,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
               <div
                 className={`absolute inset-0 rounded-full transition-all duration-700 ${isAiConcluded ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-50'}`}
                 style={{
-                  opacity: (status === 'active' || status === 'connecting') ? (isAiConcluded ? 0.3 : 0.6) : 0,
+                  opacity: status === 'active' ? (isAiConcluded ? 0.3 : 0.6) : 0,
                   transform: `scale(${1 + (volume / 80) + (isAiConcluded ? 0.2 : 0)})`
                 }}
               />
@@ -251,17 +251,27 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
                 <button
                   onClick={(status === 'idle' || status === 'error') ? handleStart : handleStop}
                   disabled={status === 'connecting' || isAnalyzing}
-                  className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') : 'bg-black'} text-white disabled:opacity-50`}
+                  className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') :
+                    status === 'connecting' || isAnalyzing ? 'bg-gray-800 cursor-wait' : 'bg-black'
+                    } text-white disabled:opacity-60`}
                 >
-                  {(status === 'active' || status === 'connecting') ? <div className="w-8 h-8 bg-white rounded-sm" /> : <MicIcon className="w-10 h-10" />}
+                  {status === 'connecting' || isAnalyzing ? (
+                    <div className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : status === 'active' ? (
+                    <div className="w-8 h-8 bg-white rounded-sm" />
+                  ) : (
+                    <MicIcon className="w-10 h-10" />
+                  )}
                 </button>
 
                 <div className="flex flex-col items-center text-center">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] leading-relaxed max-w-[240px] ${isAiConcluded ? 'text-indigo-600 animate-pulse' : 'text-gray-400'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] leading-relaxed max-w-[240px] ${isAiConcluded ? 'text-indigo-600 animate-pulse' :
+                    status === 'connecting' ? 'text-indigo-400 animate-pulse' : 'text-gray-400'
+                    }`}>
                     {belowMicText}
                   </span>
                   {status === 'active' && !isAiConcluded && (
-                    <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest">Tap square to stop</span>
+                    <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest animate-fade-in">Tap square to stop</span>
                   )}
                 </div>
               </div>

@@ -119,6 +119,7 @@ export interface PracticeSession {
   scenarioId: string;
   transcript: TranscriptEntry[];
   feedback?: string;
+  suggestedFocusOptions?: string;
   learner_rating?: number;
   timestamp: string;
   status: 'in-progress' | 'completed';
