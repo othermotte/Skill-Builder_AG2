@@ -110,53 +110,71 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       );
     }
 
-    const sessionScenario = scenarios.find(s => s.id === latestSession.scenarioId);
+    const activeSessions: typeof practiceSessions = [];
+    const seenScenarios = new Set<string>();
+
+    for (const session of practiceSessions) {
+      if (!seenScenarios.has(session.scenarioId)) {
+        seenScenarios.add(session.scenarioId);
+        activeSessions.push(session);
+      }
+    }
 
     return (
-      <div className="bg-white border border-gray-100 rounded-[3rem] p-10 shadow-sm space-y-8">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Your Current Path</span>
-            <h3 className="text-2xl font-black tracking-tight text-gray-900">
-              {latestSession.status === 'completed' ? 'Continue practising' : 'Resume Assessment'}
-            </h3>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-          </div>
-        </div>
+      <div className="space-y-6">
+        {activeSessions.map(session => {
+          const sessionScenario = scenarios.find(s => s.id === session.scenarioId);
+          if (!sessionScenario) return null;
 
-        <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Target Scenario</p>
-          <div className="flex justify-between items-end mb-4">
-            <div>
-              <p className="font-bold text-gray-900">{sessionScenario?.title || 'Unknown Lab'}</p>
-              <p className="text-xs text-gray-500 mt-1">Last activity: {new Date(latestSession.timestamp).toLocaleDateString()}</p>
+          return (
+            <div
+              key={session.id}
+              onClick={() => session.status === 'completed' ? onViewSessionFeedback(session, 'choose_focus') : onStartPractice(sessionScenario)}
+              role="button"
+              tabIndex={0}
+              className="block w-full text-left bg-white border border-gray-100 rounded-[3rem] p-10 shadow-sm space-y-8 cursor-pointer hover:border-black hover:shadow-md transition-all group outline-none focus:ring-4 focus:ring-indigo-500/20"
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">In Progress Scenario</span>
+                  <h3 className="text-2xl font-black tracking-tight text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    {session.status === 'completed' ? 'Continue practising' : 'Resume Assessment'}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Target Scenario</p>
+                <div className="flex justify-between items-end mb-4">
+                  <div>
+                    <p className="font-bold text-gray-900">{sessionScenario.title}</p>
+                    <p className="text-xs text-gray-500 mt-1">Last activity: {new Date(session.timestamp).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200/50 space-y-1">
+                  <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                    You’ve practised <span className="font-black text-gray-900">{scenarioDepthMap[sessionScenario.id] || 0} micro-skills</span> in this scenario.
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-bold leading-relaxed">
+                    We recommend around <span className="text-gray-600">12 micro-skill practices</span> before re-running a scenario.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1 bg-black text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-center group-hover:bg-gray-800 transition-all shadow-xl">
+                  {session.status === 'completed' ? 'Choose a micro-skill to practise' : 'Resume Lab'}
+                </div>
+              </div>
             </div>
-          </div>
-
-          {sessionScenario && (
-            <div className="pt-4 border-t border-gray-200/50 space-y-1">
-              <p className="text-xs text-gray-600 font-medium leading-relaxed">
-                You’ve practised <span className="font-black text-gray-900">{scenarioDepthMap[sessionScenario.id] || 0} micro-skills</span> in this scenario.
-              </p>
-              <p className="text-[10px] text-gray-400 font-bold leading-relaxed">
-                We recommend around <span className="text-gray-600">12 micro-skill practices</span> before re-running a scenario.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={() => latestSession.status === 'completed' ? onViewSessionFeedback(latestSession, 'choose_focus') : onStartPractice(sessionScenario!)}
-            className="flex-1 bg-black text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl"
-          >
-            {latestSession.status === 'completed' ? 'Choose a micro-skill to practise' : 'Resume Lab'}
-          </button>
-        </div>
+          );
+        })}
       </div>
     );
   };
