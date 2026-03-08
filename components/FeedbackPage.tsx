@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PracticeSession, Scenario, Skill, FeedbackAnalysis, SkillLibrary, PracticeAttempt } from '../types';
 import { getMicroSkillSuggestions } from '../services/geminiService';
 import { getSkillLibrary, updateSessionRating, savePracticeSession } from '../services/firebase';
@@ -14,6 +14,7 @@ interface FeedbackPageProps {
     onBeginPracticeLoop: (groupId: string, microSkillId: string, reason: string) => void;
     initialView?: 'feedback' | 'choose_focus';
     onSessionUpdate?: (session: PracticeSession) => void;
+    onRetryAssessment?: () => void;
 }
 
 const ScoreBar: React.FC<{ score: number; max: number; name: string; justification: string }> = ({ score, max, name, justification }) => {
@@ -69,7 +70,11 @@ const StarRating: React.FC<{ initialRating?: number; onRate: (rating: number) =>
     );
 };
 
-export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, scenario, skills, practiceAttempts, onBackToDashboard, onViewHistory, onBeginPracticeLoop, initialView = 'feedback', onSessionUpdate }) => {
+export const FeedbackPage: React.FC<FeedbackPageProps> = ({
+    practiceSession, scenario, skills, practiceAttempts,
+    onBackToDashboard, onViewHistory, onBeginPracticeLoop,
+    initialView = 'feedback', onSessionUpdate, onRetryAssessment
+}) => {
     const [showTranscript, setShowTranscript] = useState(false);
     const [viewState, setViewState] = useState<'feedback' | 'choose_focus'>(initialView);
     const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -87,7 +92,6 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
         if (!practiceSession.feedback) return null;
         try {
             const parsed = JSON.parse(practiceSession.feedback);
-            if (parsed.error) return null;
             return parsed;
         } catch (e) {
             console.error("Failed to parse feedback JSON", e);
@@ -96,19 +100,24 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
     }, [practiceSession.feedback]);
 
     useEffect(() => {
-        if (feedback && viewState === 'choose_focus') {
-            const fetchEverything = async () => {
+        // Only trigger fetch if we are in choose_focus view AND we have no suggestions yet
+        if (feedback && viewState === 'choose_focus' && suggestions.length === 0 && !isLoadingSuggestions && !errorMsg) {
+
+            const loadData = async () => {
+                // 1. Try Cache First
                 if (practiceSession.suggestedFocusOptions) {
                     try {
-                        setSuggestions(JSON.parse(practiceSession.suggestedFocusOptions));
-                        const lib = await getSkillLibrary();
-                        setLibrary(lib);
-                        return;
-                    } catch (e) {
-                        console.warn("Invalid cached suggestions", e);
-                    }
+                        const parsed = JSON.parse(practiceSession.suggestedFocusOptions);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setSuggestions(parsed);
+                            const lib = await getSkillLibrary();
+                            setLibrary(lib);
+                            return;
+                        }
+                    } catch (e) { }
                 }
 
+                // 2. Fresh Fetch
                 setIsLoadingSuggestions(true);
                 setErrorMsg(null);
                 try {
@@ -119,21 +128,22 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                     setLibrary(lib);
                     setSuggestions(sug);
 
-                    const updatedSession = { ...practiceSession, suggestedFocusOptions: JSON.stringify(sug) };
-                    savePracticeSession(updatedSession).catch(e => console.error("Failed to cache suggestions", e));
-                    if (onSessionUpdate) onSessionUpdate(updatedSession);
-                } catch (e) {
-                    setErrorMsg("Connection error while generating suggestions.");
+                    if (sug.length > 0) {
+                        const updatedSession = { ...practiceSession, suggestedFocusOptions: JSON.stringify(sug) };
+                        savePracticeSession(updatedSession).catch(() => { });
+                        if (onSessionUpdate) onSessionUpdate(updatedSession);
+                    }
+                } catch (e: any) {
+                    console.error("Suggestion fetch failed:", e?.message || e);
+                    setErrorMsg("Failed to generate practice suggestions: " + (e?.message || "Connection error") + ". Please try again.");
                 } finally {
                     setIsLoadingSuggestions(false);
                 }
             };
 
-            if (suggestions.length === 0) {
-                fetchEverything();
-            }
+            loadData();
         }
-    }, [feedback, viewState, practiceSession.transcript, practiceSession.suggestedFocusOptions, suggestions.length, onSessionUpdate]);
+    }, [viewState, feedback, practiceSession.id]); // Strict deps to prevent loops
 
     const handleGenerateNewSuggestions = async () => {
         setIsLoadingSuggestions(true);
@@ -162,12 +172,44 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
         onBeginPracticeLoop(opt.groupId, opt.microSkillId, opt.reason);
     };
 
+    const isErrorState = practiceSession.feedback?.includes('"error":true');
+    const hasRawFeedback = !!practiceSession.feedback;
+    const isFeedbackStoredButUnparseable = hasRawFeedback && !feedback && !isErrorState;
+
+    if (isErrorState || isFeedbackStoredButUnparseable) {
+        return (
+            <div className="max-w-3xl mx-auto p-12 text-center flex flex-col items-center justify-center min-h-[60vh]">
+                <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                    </svg>
+                </div>
+                <h2 className="text-2xl font-black mb-4 uppercase tracking-tight">
+                    {isFeedbackStoredButUnparseable ? 'Analysis Mismatch' : 'Analysis Interrupted'}
+                </h2>
+                <p className="text-gray-500 mb-8 max-w-sm font-medium">
+                    {isFeedbackStoredButUnparseable
+                        ? "The assessment was generated but the formatting is inconsistent. You can try re-triggering it below."
+                        : "Something went wrong while generating your assessment. You can try re-triggering the analysis or return to your dashboard."}
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <button onClick={onBackToDashboard} className="text-gray-400 border border-gray-200 px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-50 transition-colors">Return to Dashboard</button>
+                    <button onClick={onRetryAssessment} className="bg-black text-white px-10 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-800 transition-all active:scale-95">Retry Analysis</button>
+                </div>
+            </div>
+        );
+    }
+
     if (!feedback) {
         return (
             <div className="max-w-3xl mx-auto p-12 text-center flex flex-col items-center justify-center min-h-[60vh]">
                 <div className="w-10 h-10 border-4 border-gray-100 border-t-black rounded-full animate-spin mb-6"></div>
-                <h2 className="text-2xl font-black mb-4">Assessment Loading...</h2>
-                <button onClick={onBackToDashboard} className="bg-black text-white px-8 py-3 rounded-xl font-bold uppercase text-xs">Return to Dashboard</button>
+                <h2 className="text-2xl font-black mb-4">Deep Analysis in Progress...</h2>
+                <p className="text-gray-500 mb-8 max-w-md">Our Pro AI is conducting a high-fidelity review of your interaction to provide your leadership capability assessment. This deep-dive analysis usually takes about 2-3 minutes.</p>
+                <div className="flex flex-col gap-4">
+                    <button onClick={onBackToDashboard} className="bg-black text-white px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-800 transition-colors">Return to Dashboard</button>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">You can leave this screen; your results will appear on the dashboard shortly.</p>
+                </div>
             </div>
         );
     }
@@ -175,16 +217,21 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
     const isValid = feedback.validity?.is_valid ?? false;
 
     const scoreItems = useMemo(() => {
-        if (!feedback.scores) return [];
-        return Object.entries(feedback.scores).map(([id, val]) => {
-            const skillObj = skills.find(s => s.id === id);
-            return {
-                id,
-                name: skillObj?.name || id.replace(/_/g, ' ').toUpperCase(),
-                ...(val as any)
-            };
-        }).filter(item => item.name);
-    }, [feedback.scores, skills]);
+        if (!feedback?.scores || typeof feedback.scores !== 'object') return [];
+        try {
+            return Object.entries(feedback.scores).map(([id, val]) => {
+                const skillObj = skills.find(s => s.id === id);
+                return {
+                    id,
+                    name: skillObj?.name || id.replace(/_/g, ' ').toUpperCase(),
+                    ...(val as any)
+                };
+            }).filter(item => item && item.name);
+        } catch (e) {
+            console.error("Error processing scores:", e);
+            return [];
+        }
+    }, [feedback?.scores, skills]);
 
     if (viewState === 'choose_focus') {
         return (
@@ -216,7 +263,15 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                         <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest animate-pulse">Analyzing transcripts for micro-gaps...</p>
                     </div>
                 ) : errorMsg ? (
-                    <p className="text-rose-500 text-center font-bold bg-rose-50 p-8 rounded-3xl border border-rose-100">{errorMsg}</p>
+                    <div className="text-center bg-rose-50 p-8 rounded-3xl border border-rose-100 space-y-4">
+                        <p className="text-rose-500 font-bold">{errorMsg}</p>
+                        <button
+                            onClick={() => { setErrorMsg(null); setSuggestions([]); }}
+                            className="bg-black text-white px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-800 transition-all active:scale-95"
+                        >
+                            Retry
+                        </button>
+                    </div>
                 ) : (
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">

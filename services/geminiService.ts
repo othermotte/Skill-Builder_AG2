@@ -13,7 +13,7 @@ import {
   SKILL_ID_CHANGE
 } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY as string });
 
 /**
  * Custom error class to handle rate limits and quota issues
@@ -92,10 +92,9 @@ export const getFeedbackForTranscript = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingBudget: 4000 },
         responseMimeType: "application/json",
         responseSchema: responseSchema
       }
@@ -190,10 +189,12 @@ export const getMicroSkillSuggestions = async (
       }
     });
     const cleanedText = response.text?.replace(/```json/gi, '').replace(/```/g, '').trim() || "[]";
-    return JSON.parse(cleanedText);
+    const result = JSON.parse(cleanedText);
+    console.log("Suggestions result:", result.length, "items returned");
+    return result;
   } catch (error: any) {
-    console.error("Suggestions Error:", error);
-    return [];
+    console.error("Suggestions Error:", error?.message || error);
+    throw error; // Re-throw so the caller can show a proper error message
   }
 };
 

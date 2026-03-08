@@ -20,7 +20,7 @@ import {
   getSkillLibrary
 } from './services/firebase';
 import { auth } from './firebaseConfig';
-import { generateSkillSnapshot, analyzePracticeReflection } from './services/geminiService';
+import { generateSkillSnapshot, analyzePracticeReflection, getFeedbackForTranscript } from './services/geminiService';
 
 import { LoginPage } from './components/LoginPage';
 import { NetworkIcon } from './components/icons/NetworkIcon';
@@ -210,6 +210,46 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRetryAssessment = async (session: PracticeSession) => {
+    // Clear old feedback immediately so UI shows loader
+    const loadingSession = { ...session, feedback: null };
+    setCurrentPracticeSession(loadingSession);
+    setIsLoadingData(true);
+    try {
+      const scenario = scenarios.find(s => s.id === session.scenarioId);
+      if (!scenario) throw new Error("Scenario not found");
+
+      const targetSkill = skills.find(s => s.id === scenario.skillId);
+      const response = await getFeedbackForTranscript(scenario, session.transcript, targetSkill?.name || 'Leadership', 'English');
+
+      const updatedSession: PracticeSession = {
+        ...session,
+        feedback: response.text?.replace(/```json/gi, '').replace(/```/g, '').trim(),
+        suggestedFocusOptions: null, // Clear old suggestions so they re-generate correctly
+        status: 'completed'
+      };
+
+      const savedSession = await savePracticeSession(updatedSession);
+      setCurrentPracticeSession(savedSession);
+      setPracticeSessions(prev => prev.map(s => s.id === savedSession.id ? savedSession : s));
+
+      if (appUser) {
+        try {
+          const feedbackData: FeedbackAnalysis = JSON.parse(savedSession.feedback!);
+          const updatedUser = await updateUserMemory(appUser.id, feedbackData, savedSession.scenarioId);
+          if (updatedUser) setAppUser(updatedUser);
+        } catch (e) { }
+      }
+    } catch (error: any) {
+      console.error("Retry assessment failed:", error);
+      // Put back the original session so they can retry again
+      setCurrentPracticeSession(session);
+      alert("Retry failed: " + (error.message || "Unknown error"));
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
   const renderLoader = (text: string) => (
     <div className="flex-grow flex flex-col items-center justify-center min-h-[50vh] p-8">
       <div className="w-8 h-8 border-2 border-gray-200 border-t-black rounded-full animate-spin mb-4"></div>
@@ -253,8 +293,9 @@ const App: React.FC = () => {
         /> : null;
       case 'feedback':
         if (!currentPracticeSession || !selectedScenario) {
-          setActivePage('dashboard');
-          return null;
+          console.warn("Missing session or scenario for feedback page, redirecting to dashboard");
+          setTimeout(() => setActivePage('dashboard'), 0);
+          return renderLoader("Finalizing...");
         }
         return <FeedbackPage
           practiceSession={currentPracticeSession} scenario={selectedScenario}
@@ -267,6 +308,7 @@ const App: React.FC = () => {
             setCurrentPracticeSession(updatedSession);
             setPracticeSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
           }}
+          onRetryAssessment={() => handleRetryAssessment(currentPracticeSession)}
         />;
       case 'snapshot':
         return (activeMicroSkill && snapshot) ? <SkillSnapshotView
