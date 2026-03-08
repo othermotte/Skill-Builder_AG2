@@ -292,13 +292,15 @@ const App: React.FC = () => {
           mode={practiceType}
         /> : null;
       case 'feedback':
-        if (!currentPracticeSession || !selectedScenario) {
-          console.warn("Missing session or scenario for feedback page, redirecting to dashboard");
+        if (!currentPracticeSession) {
+          console.warn("Missing session for feedback page, redirecting to dashboard");
           setTimeout(() => setActivePage('dashboard'), 0);
           return renderLoader("Finalizing...");
         }
+        // Try to find the scenario; it's OK if missing — FeedbackPage can function without it
+        const feedbackScenario = selectedScenario || scenarios.find(sc => sc.id === currentPracticeSession.scenarioId) || null;
         return <FeedbackPage
-          practiceSession={currentPracticeSession} scenario={selectedScenario}
+          practiceSession={currentPracticeSession} scenario={feedbackScenario!}
           skills={skills} practiceAttempts={practiceAttempts}
           onBackToDashboard={() => setActivePage('dashboard')}
           onViewHistory={() => setActivePage('history')}

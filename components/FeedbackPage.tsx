@@ -422,7 +422,7 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
                     </span>
                 </div>
                 <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-gray-900 leading-none">
-                    {scenario.title}
+                    {scenario?.title || 'Session Assessment'}
                 </h2>
                 <div className="flex items-center justify-center gap-6">
                     <div className="text-center">
