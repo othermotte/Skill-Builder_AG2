@@ -189,7 +189,8 @@ export const getMicroSkillSuggestions = async (
         }
       }
     });
-    return JSON.parse(response.text || "[]");
+    const cleanedText = response.text?.replace(/```json/gi, '').replace(/```/g, '').trim() || "[]";
+    return JSON.parse(cleanedText);
   } catch (error: any) {
     console.error("Suggestions Error:", error);
     return [];
@@ -247,7 +248,8 @@ export const generateSkillSnapshot = async (
         }
       }
     });
-    return JSON.parse(response.text || "{}") as SkillSnapshot;
+    const cleanedText = response.text?.replace(/```json/gi, '').replace(/```/g, '').trim() || "{}";
+    return JSON.parse(cleanedText) as SkillSnapshot;
   } catch (error: any) {
     return {
       concept: "Unable to generate briefing.",
@@ -273,7 +275,7 @@ export const analyzePracticeReflection = async (
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Analyze this transcript for the specific application of the micro-skill: "${microSkillLabel}".\n\nTranscript:\n${formattedTranscript}`,
+      contents: `Analyze this transcript for the specific application of the micro-skill: "${microSkillLabel}".\n\nCRITICAL TONE REQUIREMENT: You are a highly supportive, encouraging leadership coach. This is a safe practice environment. Frame the "adjustment" specifically as a warm, actionable coaching tip rather than a harsh critique.\n\nTranscript:\n${formattedTranscript}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -288,7 +290,8 @@ export const analyzePracticeReflection = async (
         }
       }
     });
-    return JSON.parse(response.text || "{}");
+    const cleanedText = response.text?.replace(/```json/gi, '').replace(/```/g, '').trim() || "{}";
+    return JSON.parse(cleanedText);
   } catch (error: any) {
     return { detected: false, evidence: "Error", impact: "N/A", adjustment: "N/A" };
   }

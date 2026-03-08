@@ -228,10 +228,14 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                                 const diagnosis = reasonParts[0];
                                 const evidence = reasonParts.slice(1).join('\n');
 
-                                const hasCompleted = practiceAttempts?.some(
+                                const hasCompletedThisSession = practiceAttempts?.some(
                                     a => a.parentSessionId === practiceSession.id &&
                                         a.microSkillId === opt.microSkillId &&
                                         a.completedAt
+                                );
+
+                                const hasCompletedBefore = !hasCompletedThisSession && practiceAttempts?.some(
+                                    a => a.microSkillId === opt.microSkillId && a.completedAt
                                 );
 
                                 return (
@@ -241,7 +245,7 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                                         onClick={() => handleSelectFocus(opt)}
                                         className={`text-left group bg-white border rounded-[3rem] p-10 transition-all duration-500 flex flex-col h-full ring-offset-4 relative ${isProcessing ? 'border-indigo-500 ring-4 ring-indigo-50 scale-[0.98]' :
                                             isOtherSelected ? 'opacity-40 grayscale pointer-events-none' :
-                                                hasCompleted ? 'border-emerald-100 bg-emerald-50/10 hover:border-emerald-300' :
+                                                hasCompletedThisSession ? 'border-emerald-100 bg-emerald-50/10 hover:border-emerald-300' :
                                                     'border-gray-100 hover:border-black hover:ring-2 hover:ring-indigo-50 shadow-sm hover:shadow-2xl'
                                             }`}
                                     >
@@ -252,17 +256,25 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                                         </div>
 
                                         <div className="absolute top-10 right-10 flex flex-col items-end gap-3">
-                                            {hasCompleted && (
+                                            {hasCompletedThisSession && (
                                                 <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1 shadow-sm">
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>
                                                     Completed
                                                 </span>
                                             )}
-                                            <span className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-500 ${isProcessing ? 'bg-indigo-500 border-indigo-500 text-white' : hasCompleted ? 'border-emerald-200 text-emerald-500 bg-emerald-50' : 'border-gray-100 text-gray-400 group-hover:bg-black group-hover:text-white group-hover:border-black'}`}>
+                                            {hasCompletedBefore && (
+                                                <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-amber-200 flex items-center gap-1 shadow-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clipRule="evenodd" /></svg>
+                                                    Practiced Before
+                                                </span>
+                                            )}
+                                            <span className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-500 ${isProcessing ? 'bg-indigo-500 border-indigo-500 text-white' : hasCompletedThisSession ? 'border-emerald-200 text-emerald-500 bg-emerald-50' : hasCompletedBefore ? 'border-amber-200 text-amber-500 bg-amber-50 group-hover:bg-amber-100 group-hover:border-amber-300' : 'border-gray-100 text-gray-400 group-hover:bg-black group-hover:text-white group-hover:border-black'}`}>
                                                 {isProcessing ? (
                                                     <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                                ) : hasCompleted ? (
+                                                ) : hasCompletedThisSession ? (
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" /></svg>
+                                                ) : hasCompletedBefore ? (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z" clipRule="evenodd" /></svg>
                                                 ) : (
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M16.28 11.47a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06-1.06L14.69 12 7.72 5.03a.75.75 0 0 1 1.06-1.06l7.5 7.5Z" clipRule="evenodd" /></svg>
                                                 )}
@@ -301,7 +313,10 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({ practiceSession, sce
                                                     <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest animate-pulse">Loading Loop...</span>
                                                 ) : (
                                                     <>
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                                        <span className={`text-[10px] font-black uppercase tracking-[0.1em] transition-colors ${hasCompletedThisSession || hasCompletedBefore ? 'text-gray-500 group-hover:text-amber-600' : 'text-indigo-500 group-hover:text-indigo-700'}`}>
+                                                            {hasCompletedThisSession || hasCompletedBefore ? 'Practice Again' : 'Start Practice'}
+                                                        </span>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${hasCompletedThisSession || hasCompletedBefore ? 'text-gray-400 group-hover:text-amber-500' : 'text-indigo-400'}`}><path fillRule="evenodd" d="M16.28 11.47a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06-1.06L14.69 12 7.72 5.03a.75.75 0 0 1 1.06-1.06l7.5 7.5Z" clipRule="evenodd" /></svg>
                                                     </>
                                                 )}
                                             </div>
