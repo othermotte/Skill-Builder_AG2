@@ -40,6 +40,10 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   useEffect(() => {
     if (mode === 'tutorial' && practiceMode) {
       getMicroSkillTutorInstruction().then(baseInstruction => {
+        const memoryList = currentUser.growth_memory && currentUser.growth_memory.trim().length > 0
+          ? currentUser.growth_memory
+          : "No specific prior focus areas.";
+
         const inputData = `
 ### SESSION INPUT DATA (CONFIDENTIAL):
 - Micro-skill label: ${practiceMode.microSkill.label}
@@ -47,13 +51,19 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
 - Common trap: ${practiceMode.microSkill.trap || 'None'}
 - Criteria: ${practiceMode.microSkill.criteria?.join(', ') || 'Not specified'}
 - Evidence context: ${practiceMode.cuePrompt || 'N/A'}
+
+### PREVIOUS LEARNER FOCUS & ADJUSTMENTS:
+${memoryList}
         `;
 
-        const enriched = baseInstruction
+        const enriched = (baseInstruction || '')
           .replace('[micro-skill label]', practiceMode.microSkill.label)
           + "\n\n" + inputData;
 
         setTutorInstruction(enriched);
+      }).catch((err) => {
+        console.error("Failed to load tutor instruction:", err);
+        setTutorInstruction('You are a supportive, coaching leadership tutor helping the participant practice the micro-skill: ' + practiceMode.microSkill.label + '. Do NOT act as a strict assessor. Be encouraging and provide a safe space to practice.');
       });
     }
   }, [mode, practiceMode]);
@@ -65,7 +75,10 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
     ${scenario.description}
   `;
 
-  const combinedInstruction = mode === 'tutorial' ? (tutorInstruction || 'You are a supportive leadership tutor.') : diagnosticInstruction;
+  // Provide a safe fallback but explicitly flag when it's loading.
+  const combinedInstruction = mode === 'tutorial'
+    ? (tutorInstruction || 'LOADING_INSTRUCTION')
+    : diagnosticInstruction;
 
   const {
     status,
@@ -77,7 +90,8 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   } = useLiveSession({
     apiKey: import.meta.env.VITE_GEMINI_API_KEY as string,
     voiceName: 'Kore',
-    systemInstruction: combinedInstruction
+    systemInstruction: combinedInstruction,
+    omitGlobalOS: mode === 'tutorial'
   });
 
   useEffect(() => {
@@ -116,17 +130,17 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
     try {
       const response = await getFeedbackForTranscript(scenario, transcript, targetSkill?.name || 'Leadership', 'English');
 
-      onSessionEnd({
+      await onSessionEnd({
         id: '',
         userId: currentUser.id,
         scenarioId: scenario.id,
         transcript: transcript,
-        feedback: response.text,
+        feedback: response.text?.replace(/```json/gi, '').replace(/```/g, '').trim(),
         timestamp: new Date().toISOString(),
         status: 'completed'
-      }, mode === 'diagnostic', isAiConcluded);
+      }, mode === 'diagnostic', mode === 'tutorial' ? true : isAiConcluded);
     } catch (e) {
-      onSessionEnd({
+      await onSessionEnd({
         id: '',
         userId: currentUser.id,
         scenarioId: scenario.id,
@@ -187,7 +201,11 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
     }
   } else {
     // Idle state
-    belowMicText = "Tap to start, then speak to tell the tutor you’re ready.";
+    if (mode === 'tutorial' && !tutorInstruction) {
+      belowMicText = "Loading tutor profile...";
+    } else {
+      belowMicText = "Tap to start, then speak to tell the tutor you’re ready.";
+    }
   }
 
   return (
@@ -250,7 +268,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
               <div className="flex flex-col items-center gap-6">
                 <button
                   onClick={(status === 'idle' || status === 'error') ? handleStart : handleStop}
-                  disabled={status === 'connecting' || isAnalyzing}
+                  disabled={status === 'connecting' || isAnalyzing || combinedInstruction === 'LOADING_INSTRUCTION'}
                   className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') :
                     status === 'connecting' || isAnalyzing ? 'bg-gray-800 cursor-wait' : 'bg-black'
                     } text-white disabled:opacity-60`}

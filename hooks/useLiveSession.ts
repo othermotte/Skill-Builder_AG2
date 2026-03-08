@@ -10,9 +10,10 @@ interface UseLiveSessionProps {
   apiKey: string;
   voiceName: string;
   systemInstruction: string;
+  omitGlobalOS?: boolean;
 }
 
-export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLiveSessionProps) => {
+export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGlobalOS = false }: UseLiveSessionProps) => {
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [volume, setVolume] = useState(0);
   const [streamingText, setStreamingText] = useState('');
@@ -93,7 +94,7 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
       userTranscriptBuffer.current = '';
       aiTranscriptBuffer.current = '';
 
-      const globalOS = await getGlobalFacilitatorContract();
+      const globalOS = omitGlobalOS ? '' : await getGlobalFacilitatorContract();
 
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = ctx;
@@ -185,7 +186,7 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction }: UseLive
       setStatus('error');
       cleanup();
     }
-  }, [apiKey, voiceName, systemInstruction, cleanup]);
+  }, [apiKey, voiceName, systemInstruction, omitGlobalOS, cleanup]);
 
   const handleServerMessage = async (message: LiveServerMessage) => {
     const ctx = audioContextRef.current;

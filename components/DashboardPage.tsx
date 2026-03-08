@@ -4,9 +4,9 @@ import { User, Role, Scenario, Skill, PracticeSession, PracticeAttempt, SkillLib
 import { ScenarioCard } from './ScenarioCard';
 import { PrivacyModal, ContactModal } from './LegalModals';
 import { LabGuide } from './LabGuide';
-import { getAllUsers, getAllPracticeSessions, saveAppFeedback } from '../services/firebase';
-import { AdminAnalytics } from './AdminAnalytics';
+import { getAllUsers, getAllPracticeSessions, saveAppFeedback, patchOldAttempts } from '../services/firebase';
 import { INITIAL_SKILLS } from '../constants';
+import { AdminAnalytics } from './AdminAnalytics';
 
 interface DashboardPageProps {
   currentUser: User;

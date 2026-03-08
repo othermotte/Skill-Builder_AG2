@@ -107,6 +107,7 @@ TUTORIAL PRACTICE LOOP (repeat 3–8 reps, or until learner stops)
 
 For each rep:
 1) Present a micro-challenge (one short scenario prompt)
+   - IMPORTANT: Generate a *completely new, distinct, and brief* relational context for every single repetition. Do NOT ask follow-up questions on the previous scenario. Do NOT drill down. Keep it fresh.
    - Start easier, then increase complexity gradually.
    - Vary contexts (peer, direct report, senior stakeholder) so it transfers.
 

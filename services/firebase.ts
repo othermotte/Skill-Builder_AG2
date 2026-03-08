@@ -1,36 +1,36 @@
 
 import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  sendPasswordResetEmail,
-  sendEmailVerification,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    sendPasswordResetEmail,
+    sendEmailVerification,
 } from 'firebase/auth';
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  deleteDoc,
-  query,
-  where,
-  writeBatch,
-  updateDoc,
-  orderBy,
-  limit,
-  addDoc,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    setDoc,
+    deleteDoc,
+    query,
+    where,
+    writeBatch,
+    updateDoc,
+    orderBy,
+    limit,
+    addDoc,
 } from 'firebase/firestore';
 
 import { auth, db } from '../firebaseConfig';
 import { User, Role, Scenario, Skill, PracticeSession, FeedbackAnalysis, PracticeAttempt, AppFeedback, SkillLibrary } from '../types';
-import { 
-    INITIAL_USERS, 
-    INITIAL_SCENARIOS, 
-    INITIAL_SKILLS, 
-    GLOBAL_FACILITATOR_CONTRACT, 
+import {
+    INITIAL_USERS,
+    INITIAL_SCENARIOS,
+    INITIAL_SKILLS,
+    GLOBAL_FACILITATOR_CONTRACT,
     GLOBAL_ASSESSMENT_PROTOCOL,
     MICRO_SKILL_TUTOR_INSTRUCTION,
     MICRO_SKILLS_LIBRARY_V2
@@ -82,7 +82,7 @@ const seedDatabase = async () => {
         if (!tutSnap.exists()) {
             await setDoc(tutRef, { content: MICRO_SKILL_TUTOR_INSTRUCTION });
         }
-        
+
     } catch (error: any) {
         dbInitializationPromise = null;
         console.error("Database initialization failed:", error);
@@ -92,12 +92,12 @@ const seedDatabase = async () => {
 export const forceResetSystemScenarios = async () => {
     const snap = await getDocs(collection(db, 'scenarios'));
     const batch = writeBatch(db);
-    
+
     // Delete existing scenarios
     snap.docs.forEach(d => {
         batch.delete(d.ref);
     });
-    
+
     // Re-seed initial scenarios
     INITIAL_SCENARIOS.forEach(s => {
         batch.set(doc(db, 'scenarios', s.id), s);
@@ -108,7 +108,7 @@ export const forceResetSystemScenarios = async () => {
     batch.set(doc(db, 'system_logic', 'globalAssessor'), { content: GLOBAL_ASSESSMENT_PROTOCOL });
     batch.set(doc(db, 'system_logic', 'microSkillTutor'), { content: MICRO_SKILL_TUTOR_INSTRUCTION });
     batch.set(doc(db, 'system_logic', 'skillLibrary'), MICRO_SKILLS_LIBRARY_V2);
-    
+
     await batch.commit();
 };
 
@@ -125,31 +125,34 @@ export const getSkillLibrary = async (): Promise<SkillLibrary> => {
     return snap.exists() ? snap.data() as SkillLibrary : MICRO_SKILLS_LIBRARY_V2;
 };
 
-export const saveSkillLibrary = (library: SkillLibrary) => 
+export const saveSkillLibrary = (library: SkillLibrary) =>
     setDoc(doc(db, 'system_logic', 'skillLibrary'), library);
 
 export const getGlobalFacilitatorContract = async (): Promise<string> => {
     const snap = await getDoc(doc(db, 'system_logic', 'globalFacilitator'));
-    return snap.exists() ? snap.data().content : GLOBAL_FACILITATOR_CONTRACT;
+    const content = snap.exists() ? snap.data().content : null;
+    return content || GLOBAL_FACILITATOR_CONTRACT;
 };
 
 export const getGlobalAssessorProtocol = async (): Promise<string> => {
     const snap = await getDoc(doc(db, 'system_logic', 'globalAssessor'));
-    return snap.exists() ? snap.data().content : GLOBAL_ASSESSMENT_PROTOCOL;
+    const content = snap.exists() ? snap.data().content : null;
+    return content || GLOBAL_ASSESSMENT_PROTOCOL;
 };
 
 export const getMicroSkillTutorInstruction = async (): Promise<string> => {
     const snap = await getDoc(doc(db, 'system_logic', 'microSkillTutor'));
-    return snap.exists() ? snap.data().content : MICRO_SKILL_TUTOR_INSTRUCTION;
+    const content = snap.exists() ? snap.data().content : null;
+    return content || MICRO_SKILL_TUTOR_INSTRUCTION;
 };
 
-export const saveGlobalFacilitatorContract = (content: string) => 
+export const saveGlobalFacilitatorContract = (content: string) =>
     setDoc(doc(db, 'system_logic', 'globalFacilitator'), { content });
 
-export const saveGlobalAssessorProtocol = (content: string) => 
+export const saveGlobalAssessorProtocol = (content: string) =>
     setDoc(doc(db, 'system_logic', 'globalAssessor'), { content });
 
-export const saveMicroSkillTutorInstruction = (content: string) => 
+export const saveMicroSkillTutorInstruction = (content: string) =>
     setDoc(doc(db, 'system_logic', 'microSkillTutor'), { content });
 
 // --- User Management ---
@@ -157,7 +160,7 @@ export const getUser = async (uid: string, details?: { email: string }): Promise
     const docRef = doc(db, 'users', uid);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) return docSnap.data() as User;
-    
+
     if (details?.email) {
         const newUser: User = {
             id: uid,
@@ -198,15 +201,33 @@ export const getPracticeAttempts = async (uid: string): Promise<PracticeAttempt[
     return snap.docs.map(d => d.data() as PracticeAttempt);
 };
 
+export const patchOldAttempts = async (uid: string) => {
+    const q = query(collection(db, 'practiceAttempts'), where('userId', '==', uid));
+    const snap = await getDocs(q);
+    let count = 0;
+    for (const d of snap.docs) {
+        const data = d.data();
+        // If it lacks a completedAt but has reflection/snapshot, it basically finished.
+        // We'll just backfill completedAt with its initial timestamp so it shows up.
+        if (!data.completedAt) {
+            await updateDoc(doc(db, 'practiceAttempts', d.id), {
+                completedAt: data.timestamp
+            });
+            count++;
+        }
+    }
+    return count;
+};
+
 export const toggleUserReminders = async (userId: string, enabled: boolean) => {
-  await updateDoc(doc(db, 'users', userId), { reminders_enabled: enabled });
+    await updateDoc(doc(db, 'users', userId), { reminders_enabled: enabled });
 };
 
 export const updateUserMemory = async (userId: string, feedback: FeedbackAnalysis, scenarioId: string): Promise<User | null> => {
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) return null;
-    
+
     const userData = userSnap.data() as User;
     const currentMemory = userData.growth_memory || "";
     const execSummary = feedback.summary?.overall_summary || "Session completed.";
@@ -220,16 +241,16 @@ export const updateUserMemory = async (userId: string, feedback: FeedbackAnalysi
     nextReview.setDate(now.getDate() + (feedback.next_review_days || 7));
 
     if (feedback.scores) {
-      Object.entries(feedback.scores).forEach(([skillId, val]) => {
-          const currentScore = updatedMastery[skillId] || 0;
-          const newScore = Number(val.score) || 0;
-          updatedMastery[skillId] = currentScore === 0 ? newScore : Number(((currentScore * 0.3) + (newScore * 0.7)).toFixed(1));
-          updatedRetention[skillId] = {
-              last_practiced: now.toISOString(),
-              next_review_date: nextReview.toISOString(),
-              strength: 'fresh'
-          };
-      });
+        Object.entries(feedback.scores).forEach(([skillId, val]) => {
+            const currentScore = updatedMastery[skillId] || 0;
+            const newScore = Number(val.score) || 0;
+            updatedMastery[skillId] = currentScore === 0 ? newScore : Number(((currentScore * 0.3) + (newScore * 0.7)).toFixed(1));
+            updatedRetention[skillId] = {
+                last_practiced: now.toISOString(),
+                next_review_date: nextReview.toISOString(),
+                strength: 'fresh'
+            };
+        });
     }
 
     await updateDoc(userRef, {
@@ -243,18 +264,18 @@ export const updateUserMemory = async (userId: string, feedback: FeedbackAnalysi
 
 // --- App Feedback ---
 export const saveAppFeedback = async (userId: string, email: string, content: string) => {
-  await addDoc(collection(db, 'app_feedback'), {
-    userId,
-    userEmail: email,
-    content,
-    timestamp: new Date().toISOString()
-  });
+    await addDoc(collection(db, 'app_feedback'), {
+        userId,
+        userEmail: email,
+        content,
+        timestamp: new Date().toISOString()
+    });
 };
 
 export const getAppFeedback = async (): Promise<AppFeedback[]> => {
-  const q = query(collection(db, 'app_feedback'), orderBy('timestamp', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as AppFeedback));
+    const q = query(collection(db, 'app_feedback'), orderBy('timestamp', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as AppFeedback));
 };
 
 // --- Auth ---
