@@ -129,7 +129,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           return (
             <div
               key={session.id}
-              onClick={() => session.status === 'completed' ? onViewSessionFeedback(session, 'choose_focus') : onStartPractice(sessionScenario)}
+              onClick={() => {
+                if (session.status === 'completed') {
+                  // Check if assessment is valid before allowing practice
+                  let isValidAssessment = false;
+                  try {
+                    const fb = session.feedback ? JSON.parse(session.feedback) : null;
+                    isValidAssessment = fb?.validity?.is_valid === true;
+                  } catch (e) { }
+                  onViewSessionFeedback(session, isValidAssessment ? 'choose_focus' : 'feedback');
+                } else {
+                  onStartPractice(sessionScenario);
+                }
+              }}
               role="button"
               tabIndex={0}
               className="block w-full text-left bg-white border border-gray-100 rounded-[3rem] p-10 shadow-sm space-y-8 cursor-pointer hover:border-black hover:shadow-md transition-all group outline-none focus:ring-4 focus:ring-indigo-500/20"
@@ -138,7 +150,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <div className="space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">In Progress Scenario</span>
                   <h3 className="text-2xl font-black tracking-tight text-gray-900 group-hover:text-indigo-600 transition-colors">
-                    {session.status === 'completed' ? 'Continue practising' : 'Resume Assessment'}
+                    {session.status === 'completed'
+                      ? (() => { try { const fb = JSON.parse(session.feedback || '{}'); return fb?.validity?.is_valid ? 'Continue practising' : 'View Assessment'; } catch { return 'View Assessment'; } })()
+                      : 'Resume Assessment'}
                   </h3>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all transform group-hover:scale-110 shadow-sm">
