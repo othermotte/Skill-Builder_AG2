@@ -492,15 +492,27 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
                         </div>
 
                         <div className="pt-6">
-                            <button
-                                onClick={() => setViewState('choose_focus')}
-                                className="w-full sm:w-auto bg-indigo-500 hover:bg-white hover:text-black text-white font-black py-5 px-12 rounded-3xl text-xs uppercase tracking-[0.2em] transition-all shadow-xl hover:shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-4 group/btn"
-                            >
-                                <span>View Focus & Practise Now</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                                </svg>
-                            </button>
+                            {isValid ? (
+                                <button
+                                    onClick={() => setViewState('choose_focus')}
+                                    className="w-full sm:w-auto bg-indigo-500 hover:bg-white hover:text-black text-white font-black py-5 px-12 rounded-3xl text-xs uppercase tracking-[0.2em] transition-all shadow-xl hover:shadow-indigo-500/20 active:scale-[0.98] flex items-center justify-center gap-4 group/btn"
+                                >
+                                    <span>View Focus & Practise Now</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                                    </svg>
+                                </button>
+                            ) : (
+                                <div className="space-y-3">
+                                    <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">Practice unavailable — a valid assessment is needed first</p>
+                                    <button
+                                        onClick={onRetryAssessment}
+                                        className="w-full sm:w-auto bg-black text-white font-black py-4 px-10 rounded-2xl text-xs uppercase tracking-[0.2em] transition-all hover:bg-gray-800 active:scale-[0.98]"
+                                    >
+                                        Retry Assessment
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
