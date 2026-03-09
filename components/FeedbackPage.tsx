@@ -177,6 +177,16 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
     const isFeedbackStoredButUnparseable = hasRawFeedback && !feedback && !isErrorState;
 
     if (isErrorState || isFeedbackStoredButUnparseable) {
+        const isShortTranscript = !practiceSession.transcript || practiceSession.transcript.length < 2;
+        const canRetry = !isShortTranscript;
+
+        let errorTitle = isFeedbackStoredButUnparseable ? 'Analysis Mismatch' : 'Analysis Interrupted';
+        let errorMessage = isFeedbackStoredButUnparseable
+            ? "The assessment was generated but the formatting is inconsistent. You can try re-triggering it below."
+            : isShortTranscript
+                ? "The voice connection dropped before a meaningful conversation could take place. Please return to the dashboard and try starting a new scenario."
+                : "Something went wrong while generating your assessment. You can try re-triggering the analysis or return to your dashboard.";
+
         return (
             <div className="max-w-3xl mx-auto p-12 text-center flex flex-col items-center justify-center min-h-[60vh]">
                 <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6">
@@ -185,16 +195,16 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
                     </svg>
                 </div>
                 <h2 className="text-2xl font-black mb-4 uppercase tracking-tight">
-                    {isFeedbackStoredButUnparseable ? 'Analysis Mismatch' : 'Analysis Interrupted'}
+                    {errorTitle}
                 </h2>
                 <p className="text-gray-500 mb-8 max-w-sm font-medium">
-                    {isFeedbackStoredButUnparseable
-                        ? "The assessment was generated but the formatting is inconsistent. You can try re-triggering it below."
-                        : "Something went wrong while generating your assessment. You can try re-triggering the analysis or return to your dashboard."}
+                    {errorMessage}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                     <button onClick={onBackToDashboard} className="text-gray-400 border border-gray-200 px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-50 transition-colors">Return to Dashboard</button>
-                    <button onClick={onRetryAssessment} className="bg-black text-white px-10 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-800 transition-all active:scale-95">Retry Analysis</button>
+                    {canRetry && (
+                        <button onClick={onRetryAssessment} className="bg-black text-white px-10 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-800 transition-all active:scale-95">Retry Analysis</button>
+                    )}
                 </div>
             </div>
         );
