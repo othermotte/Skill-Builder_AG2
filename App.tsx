@@ -158,25 +158,16 @@ const App: React.FC = () => {
 
   const handleSessionEnd = async (completedSession: PracticeSession, isDiagnostic = true, isCompleted = false) => {
     try {
-      const savedSession = await savePracticeSession(completedSession);
-      setPracticeSessions(prev => [savedSession, ...prev]);
-      setCurrentPracticeSession(savedSession);
-
-      if (completedSession.feedback && appUser) {
-        try {
-          const feedbackData: FeedbackAnalysis = JSON.parse(completedSession.feedback);
-          const updatedUser = await updateUserMemory(appUser.id, feedbackData, completedSession.scenarioId);
-          if (updatedUser) setAppUser(updatedUser);
-        } catch (e) { }
-      }
-
+      // For tutorial sessions, skip creating a new PracticeSession record.
+      // Tutorial data is persisted via PracticeAttempt instead.
+      // Creating a PracticeSession here would produce a "ghost" scenario entry
+      // in history that has no micro-skills and breaks resumption.
       if (activeMicroSkill && activePracticeAttempt) {
         const attemptPayload: Partial<PracticeAttempt> = {
           ...activePracticeAttempt,
           transcript: completedSession.transcript
         };
 
-        // Mark as completed if the tutor reached its closing message
         if (isCompleted) {
           attemptPayload.completedAt = new Date().toISOString();
         }
@@ -194,8 +185,21 @@ const App: React.FC = () => {
         setPracticeAttempts(prev => [finalAttempt, ...prev.filter(a => a.id !== finalAttempt.id)]);
         setActivePage('reflection');
         setIsLoadingData(false);
-        logEvent(appUser.id, 'practice_completed', { attemptId: finalAttempt.id, reflection: reflectionAnalysis, isCompleted });
+        logEvent(appUser!.id, 'practice_completed', { attemptId: finalAttempt.id, reflection: reflectionAnalysis, isCompleted });
         return;
+      }
+
+      // Diagnostic scenario flow: save the PracticeSession record normally
+      const savedSession = await savePracticeSession(completedSession);
+      setPracticeSessions(prev => [savedSession, ...prev]);
+      setCurrentPracticeSession(savedSession);
+
+      if (completedSession.feedback && appUser) {
+        try {
+          const feedbackData: FeedbackAnalysis = JSON.parse(completedSession.feedback);
+          const updatedUser = await updateUserMemory(appUser.id, feedbackData, completedSession.scenarioId);
+          if (updatedUser) setAppUser(updatedUser);
+        } catch (e) { }
       }
 
     } catch (error) {
@@ -334,8 +338,16 @@ const App: React.FC = () => {
           analysis={activePracticeAttempt.reflection}
           onNextStep={(choice) => {
             logEvent(appUser.id, 'next_step_chosen', { choice });
-            if (choice === 'repeat') setActivePage('snapshot');
-            else setActivePage('dashboard');
+            if (choice === 'repeat') {
+              setActivePage('snapshot');
+            } else if (choice === 'new_scenario') {
+              setActivePage('dashboard');
+            } else {
+              // 'different_micro' or 'different_skill': go directly to micro-skill chooser
+              // instead of via dashboard (avoids ghost sessions intercepting navigation)
+              setFeedbackInitialView('choose_focus');
+              setActivePage('feedback');
+            }
           }}
         /> : null;
       case 'history':
