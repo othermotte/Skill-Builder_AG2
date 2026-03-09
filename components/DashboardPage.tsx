@@ -113,7 +113,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const activeSessions: typeof practiceSessions = [];
     const seenScenarios = new Set<string>();
 
-    for (const session of practiceSessions) {
+    // Sort newest first, then prefer sessions with valid (non-error) feedback
+    const sorted = [...practiceSessions].sort((a, b) => {
+      // First: prefer sessions with valid feedback over error/missing feedback
+      const aIsError = !a.feedback || a.feedback.includes('"error"');
+      const bIsError = !b.feedback || b.feedback.includes('"error"');
+      if (aIsError !== bIsError) return aIsError ? 1 : -1;
+      // Then: newest first
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    for (const session of sorted) {
       if (!seenScenarios.has(session.scenarioId)) {
         seenScenarios.add(session.scenarioId);
         activeSessions.push(session);

@@ -15,6 +15,11 @@ export const ReflectionView: React.FC<ReflectionViewProps> = ({ analysis, onNext
     const [confidence, setConfidence] = useState(3);
     const [usefulness, setUsefulness] = useState(3);
 
+    // Detect error / insufficient data in the reflection
+    const isInsufficient = !analysis.evidence
+        || analysis.evidence.toLowerCase().includes('error')
+        || (analysis.evidence === 'N/A' && analysis.impact === 'N/A');
+
     return (
         <div className="max-w-3xl mx-auto p-4 md:p-12 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
             <div className="mb-12 space-y-4">
@@ -27,29 +32,46 @@ export const ReflectionView: React.FC<ReflectionViewProps> = ({ analysis, onNext
             </div>
 
             <div className="space-y-8 mb-12">
-                <div className="p-8 bg-white border border-gray-100 rounded-[3rem] shadow-sm space-y-6">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${analysis.detected ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                        <span className="text-sm font-black uppercase tracking-widest text-gray-900">
-                            {analysis.detected ? 'Micro-Skill Practiced' : 'Keep Practicing'}
-                        </span>
+                {isInsufficient ? (
+                    <div className="p-8 bg-white border border-gray-100 rounded-[3rem] shadow-sm space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                            <span className="text-sm font-black uppercase tracking-widest text-gray-900">
+                                Not Enough to Go On
+                            </span>
+                        </div>
+                        <p className="text-base font-medium text-gray-600 leading-relaxed">
+                            The conversation was too brief to provide a meaningful reflection. Try a longer practice session next time — even a few more exchanges make a big difference.
+                        </p>
+                        <p className="text-sm text-gray-400 font-medium">
+                            You can repeat this micro-skill or choose a different one below.
+                        </p>
                     </div>
+                ) : (
+                    <div className="p-8 bg-white border border-gray-100 rounded-[3rem] shadow-sm space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${analysis.detected ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                            <span className="text-sm font-black uppercase tracking-widest text-gray-900">
+                                {analysis.detected ? 'Micro-Skill Practised' : 'Keep Practising'}
+                            </span>
+                        </div>
 
-                    <div className="space-y-4">
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Evidence</p>
-                            <p className="text-base font-medium text-gray-700 italic">"{analysis.evidence}"</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Observed Impact</p>
-                            <p className="text-base font-medium text-gray-700">{analysis.impact}</p>
-                        </div>
-                        <div className="pt-4 border-t border-gray-50">
-                            <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Coaching Tip</p>
-                            <p className="text-sm font-bold text-indigo-600 uppercase tracking-tight">{analysis.adjustment}</p>
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Evidence</p>
+                                <p className="text-base font-medium text-gray-700 italic">"{analysis.evidence}"</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Observed Impact</p>
+                                <p className="text-base font-medium text-gray-700">{analysis.impact}</p>
+                            </div>
+                            <div className="pt-4 border-t border-gray-50">
+                                <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Coaching Tip</p>
+                                <p className="text-sm font-bold text-indigo-600 uppercase tracking-tight">{analysis.adjustment}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 <div className="p-8 bg-gray-50 border border-gray-100 rounded-[3rem] space-y-8">
                     <h4 className="text-xl font-black tracking-tight text-gray-900">Self-Rating</h4>
