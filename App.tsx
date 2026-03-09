@@ -216,8 +216,13 @@ const App: React.FC = () => {
     setCurrentPracticeSession(loadingSession);
     setIsLoadingData(true);
     try {
+      // Guard: Check if there's enough transcript to analyze
+      if (!session.transcript || session.transcript.length < 2) {
+        throw new Error("This session doesn't have enough conversation data to analyze. The voice connection may have dropped before a meaningful exchange could take place. Please try running a new scenario.");
+      }
+
       const scenario = scenarios.find(s => s.id === session.scenarioId);
-      if (!scenario) throw new Error("Scenario not found");
+      if (!scenario) throw new Error("Scenario not found. Please return to the dashboard and try again.");
 
       const targetSkill = skills.find(s => s.id === scenario.skillId);
       const response = await getFeedbackForTranscript(scenario, session.transcript, targetSkill?.name || 'Leadership', 'English');
@@ -244,7 +249,11 @@ const App: React.FC = () => {
       console.error("Retry assessment failed:", error);
       // Put back the original session so they can retry again
       setCurrentPracticeSession(session);
-      alert("Retry failed: " + (error.message || "Unknown error"));
+      // Show user-friendly message
+      const userMsg = error.message?.includes('expected pattern')
+        ? "The AI couldn't generate a structured assessment from this transcript. The conversation may have been too short. Try running a new scenario with a longer interaction."
+        : (error.message || "Unknown error. Please try again.");
+      alert(userMsg);
     } finally {
       setIsLoadingData(false);
     }
