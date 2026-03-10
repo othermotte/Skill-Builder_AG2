@@ -162,36 +162,42 @@ ${memoryList}
    * CENTRALIZED INSTRUCTION LOGIC (SINGLE RULE)
    * Ensures only one primary instruction is visible at a time.
    */
-  let instructionAreaText = '';
+  let instructionAreaContent: React.ReactNode = '';
   let belowMicText = '';
   let isNudge = false;
 
   const lastEntry = transcript[transcript.length - 1];
 
   if (isAnalyzing) {
-    instructionAreaText = 'Analyzing capability...';
+    instructionAreaContent = 'Analyzing capability...';
     belowMicText = 'Processing...';
   } else if (status === 'error') {
-    instructionAreaText = 'Connection error. Check mic access.';
+    instructionAreaContent = 'Connection error. Check mic access.';
     belowMicText = 'Tap to retry';
   } else if (status === 'connecting') {
-    instructionAreaText = "Warming up...";
+    instructionAreaContent = "Warming up...";
     belowMicText = 'Connecting...';
   } else if (status === 'active') {
     if (isAiConcluded) {
-      instructionAreaText = "Session concluded. Tap to finish.";
+      instructionAreaContent = "Session concluded. Tap to finish.";
       belowMicText = 'Finalize Rep';
     } else if (streamingText) {
-      // Show real-time transcription (yours or AI's)
-      instructionAreaText = streamingText;
+      // Show listening animation instead of transcript
+      instructionAreaContent = (
+        <div className="flex gap-2 justify-center items-center h-full">
+          <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      );
       belowMicText = 'Voice Active';
     } else if (lastEntry && lastEntry.speaker === 'ai') {
       // PERSIST THE LAST AI MESSAGE while learner ponders
       // This is crucial for keeping the challenge visible.
-      instructionAreaText = lastEntry.text;
+      instructionAreaContent = lastEntry.text;
       belowMicText = 'Voice Active';
     } else if (transcript.length === 0) {
-      instructionAreaText = "Tell the tutor when you’re ready.";
+      instructionAreaContent = "Tell the tutor when you’re ready.";
       belowMicText = 'Voice Active';
       isNudge = true;
     } else {
@@ -252,9 +258,9 @@ ${memoryList}
           <div className="flex flex-col items-center w-full">
             {/* Main Single Instruction Area - Persists the AI message while pondering */}
             <div className="h-24 w-full flex items-center justify-center mb-10 relative">
-              <p className={`text-lg font-bold text-center transition-all px-8 ${isNudge ? 'text-indigo-500 italic' : 'text-gray-900'}`}>
-                {instructionAreaText}
-              </p>
+              <div className={`text-lg font-bold text-center transition-all px-8 ${isNudge ? 'text-indigo-500 italic' : 'text-gray-900'} w-full h-full flex flex-col items-center justify-center`}>
+                {instructionAreaContent}
+              </div>
             </div>
 
             <div className="relative group">
