@@ -124,10 +124,9 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGloba
             // Automatically send an invisible text prompt to kick off the AI's greeting
             sessionPromiseRef.current?.then((session) => {
               try {
-                session.send({
-                  clientContent: {
-                    turns: [{ role: 'user', parts: [{ text: 'Hello. I am ready to begin the scenario. Please greet me.' }] }]
-                  }
+                session.sendClientContent({
+                  turns: [{ role: 'user', parts: [{ text: 'Hello. I am ready to begin the scenario. Please greet me.' }] }],
+                  turnComplete: true
                 });
               } catch (e) {
                 console.warn("Failed to send initial greeting trigger", e);
