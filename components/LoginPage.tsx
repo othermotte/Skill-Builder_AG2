@@ -199,6 +199,11 @@ export const LoginPage: React.FC = () => {
                             </div>
                         </div>
                         {renderAuthForm()}
+                        
+                        <div className="mt-10 p-5 bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-500 font-medium space-y-2 leading-relaxed">
+                            <p>For the most reliable experience with voice interactions, we recommend using Chrome, Edge, or Safari.</p>
+                            <p>If you experience issues with voice in Firefox, switching to one of the browsers above usually resolves the problem</p>
+                        </div>
                     </div>
 
                     <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center lg:justify-start gap-8 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">
