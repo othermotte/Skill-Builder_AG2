@@ -30,6 +30,8 @@ import { FeedbackPage } from './components/FeedbackPage';
 import { HistoryPage } from './components/HistoryPage';
 import { SkillSnapshotView } from './components/SkillSnapshotView';
 import { ReflectionView } from './components/ReflectionView';
+import { AppFeedbackModal } from './components/AppFeedbackModal';
+
 
 const App: React.FC = () => {
   const [appUser, setAppUser] = useState<User | null>(null);
@@ -52,6 +54,8 @@ const App: React.FC = () => {
   const [activeMicroSkill, setActiveMicroSkill] = useState<MicroSkill | null>(null);
   const [snapshot, setSnapshot] = useState<SkillSnapshot | null>(null);
   const [practiceType, setPracticeType] = useState<'diagnostic' | 'tutorial'>('diagnostic');
+  const [showAppFeedback, setShowAppFeedback] = useState(false);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -383,12 +387,21 @@ const App: React.FC = () => {
             <nav className="flex items-center gap-6">
               <button onClick={() => setActivePage('dashboard')} className={`text-xs font-black uppercase tracking-widest ${activePage === 'dashboard' ? 'text-black' : 'text-gray-400'}`}>Practice</button>
               <button onClick={() => setActivePage('history')} className={`text-xs font-black uppercase tracking-widest ${activePage === 'history' ? 'text-black' : 'text-gray-400'}`}>History</button>
+              <button onClick={() => setShowAppFeedback(true)} className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-black">Feedback</button>
               <button onClick={handleLogout} className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-black">Sign out</button>
             </nav>
           </div>
         </header>
       )}
       <main className="flex-grow w-full flex flex-col">{renderContent()}</main>
+      {appUser && (
+        <AppFeedbackModal 
+          isOpen={showAppFeedback} 
+          onClose={() => setShowAppFeedback(false)} 
+          userId={appUser.id} 
+          userEmail={appUser.email} 
+        />
+      )}
     </div>
   );
 };

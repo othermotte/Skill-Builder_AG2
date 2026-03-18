@@ -7,6 +7,7 @@ import { LabGuide } from './LabGuide';
 import { getAllUsers, getAllPracticeSessions, saveAppFeedback, patchOldAttempts } from '../services/firebase';
 import { INITIAL_SKILLS } from '../constants';
 import { AdminAnalytics } from './AdminAnalytics';
+import { AppFeedbackForm } from './AppFeedbackForm';
 
 interface DashboardPageProps {
   currentUser: User;
@@ -34,8 +35,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [showContact, setShowContact] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
-  const [feedbackContent, setFeedbackContent] = useState('');
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allSessions, setAllSessions] = useState<PracticeSession[]>([]);
@@ -73,20 +72,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     return countMap;
   }, [practiceAttempts]);
 
-  const handleSubmitFeedback = async () => {
-    if (!feedbackContent.trim()) return;
-    setIsSubmittingFeedback(true);
-    try {
-      await saveAppFeedback(currentUser.id, currentUser.email, feedbackContent);
-      setFeedbackContent('');
-      setShowFeedbackForm(false);
-      alert('Thank you for your feedback!');
-    } catch (e) {
-      alert('Failed to send feedback.');
-    } finally {
-      setIsSubmittingFeedback(false);
-    }
-  };
 
   const renderActivePath = () => {
     if (!latestSession) {
@@ -305,29 +290,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             How can we make Skill Builder better? Leave feedback.
           </button>
         ) : (
-          <div className="max-w-md mx-auto p-8 bg-white border border-gray-100 rounded-[2rem] shadow-sm space-y-4 animate-in fade-in zoom-in-95 duration-300 text-left">
-            <h4 className="text-sm font-black uppercase text-gray-900">Your Feedback</h4>
-            <textarea
-              value={feedbackContent}
-              onChange={(e) => setFeedbackContent(e.target.value)}
-              placeholder="Suggestions, bugs, or thoughts..."
-              className="w-full h-32 p-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-4 focus:ring-black/5 outline-none transition-all"
+          <div className="max-w-md mx-auto p-1 text-left animate-in fade-in zoom-in-95 duration-300">
+            <AppFeedbackForm 
+                userId={currentUser.id} 
+                userEmail={currentUser.email} 
+                onSuccess={() => setShowFeedbackForm(false)}
+                onCancel={() => setShowFeedbackForm(false)}
             />
-            <div className="flex gap-3">
-              <button
-                onClick={handleSubmitFeedback}
-                disabled={isSubmittingFeedback || !feedbackContent.trim()}
-                className="flex-1 bg-black text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
-              >
-                {isSubmittingFeedback ? 'Sending...' : 'Submit'}
-              </button>
-              <button
-                onClick={() => setShowFeedbackForm(false)}
-                className="px-6 py-3 bg-gray-50 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         )}
       </section>
