@@ -20,9 +20,9 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'skill-builder-ag2'
+      - 'skill-builder-beta'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/skill-builder-ag2'
+      - 'gcr.io/$PROJECT_ID/skill-builder-beta'
       - '--region'
       - 'europe-west1' # Updated region from screenshot
       - '--platform'
@@ -30,7 +30,7 @@ steps:
       - '--allow-unauthenticated'
 
 images:
-  - 'gcr.io/$PROJECT_ID/skill-builder-ag2'
+  - 'gcr.io/$PROJECT_ID/skill-builder-beta'
 
 availableSecrets:
   secretManager:
