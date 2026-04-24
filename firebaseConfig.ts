@@ -9,13 +9,13 @@ import { initializeFirestore, persistentLocalCache, CACHE_SIZE_UNLIMITED } from 
  * Configured for project: leadership-skill-builder-7aba5
  */
 const firebaseConfig = {
-  apiKey: "REMOVED_FIREBASE_API_KEY",
-  authDomain: "leadership-skill-builder-7aba5.firebaseapp.com",
-  projectId: "leadership-skill-builder-7aba5",
-  storageBucket: "leadership-skill-builder-7aba5.firebasestorage.app",
-  messagingSenderId: "188511440983",
-  appId: "1:188511440983:web:bd30c625c1fb550a909312",
-  measurementId: "G-VCNLCTV78H"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
