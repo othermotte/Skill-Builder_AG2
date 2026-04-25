@@ -27,3 +27,11 @@ build_output.txt
 build_output_2.txt
 /dist
 package-lock.json
+
+# Google Cloud SDK (local tooling — not part of the app)
+setup/
+
+# Firebase Functions build output
+functions/lib/
+functions/node_modules/
+firebase-debug.log

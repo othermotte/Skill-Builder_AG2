@@ -2,11 +2,12 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 /**
  * FIREBASE CONFIGURATION - LEADERSHIP SKILL BUILDER
  * 
- * Configured for project: leadership-skill-builder-7aba5
+ * Configured for project: leadership-skill-builder-ag
  */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -29,3 +30,9 @@ export const db = initializeFirestore(app, {
     cacheSizeBytes: CACHE_SIZE_UNLIMITED,
   }),
 });
+
+/**
+ * Firebase Cloud Functions (europe-west1) — used to proxy all Gemini API
+ * calls securely server-side. The real API key never reaches the browser.
+ */
+export const functions = getFunctions(app, "europe-west1");

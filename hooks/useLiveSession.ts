@@ -1,19 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { httpsCallable } from 'firebase/functions';
 import { TranscriptEntry } from '../types';
 import { downsampleTo16k, base64EncodeAudio, pcmToAudioBuffer, decodeBase64ToBytes } from '../utils/audioUtils';
 import { getGlobalFacilitatorContract } from '../services/firebase';
+import { functions } from '../firebaseConfig';
 
 export type SessionStatus = 'idle' | 'connecting' | 'active' | 'error';
 
 interface UseLiveSessionProps {
-  apiKey: string;
   voiceName: string;
   systemInstruction: string;
   omitGlobalOS?: boolean;
 }
 
-export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGlobalOS = false }: UseLiveSessionProps) => {
+export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = false }: UseLiveSessionProps) => {
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [volume, setVolume] = useState(0);
   const [streamingText, setStreamingText] = useState('');
@@ -81,11 +82,6 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGloba
   }, [cleanup]);
 
   const connect = useCallback(async () => {
-    if (!apiKey) {
-      console.error("LiveSession: No API Key provided.");
-      setStatus('error');
-      return;
-    }
 
     try {
       setStatus('connecting');
@@ -105,7 +101,13 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGloba
       });
       mediaStreamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey });
+      // Fetch a short-lived ephemeral token from the secure Cloud Function.
+      // The real API key never touches the browser.
+      const getToken = httpsCallable<void, { token: string }>(functions, 'getGeminiLiveToken');
+      const tokenResult = await getToken();
+      const ephemeralToken = tokenResult.data.token;
+
+      const ai = new GoogleGenAI({ apiKey: ephemeralToken });
 
       const combinedInstruction = `
         ${globalOS}
@@ -185,7 +187,7 @@ export const useLiveSession = ({ apiKey, voiceName, systemInstruction, omitGloba
       setStatus('error');
       cleanup();
     }
-  }, [apiKey, voiceName, systemInstruction, omitGlobalOS, cleanup]);
+  }, [voiceName, systemInstruction, omitGlobalOS, cleanup]);
 
   const handleServerMessage = async (message: LiveServerMessage) => {
     const ctx = audioContextRef.current;

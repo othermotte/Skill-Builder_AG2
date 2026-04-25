@@ -88,7 +88,6 @@ ${memoryList}
     streamingText,
     transcript
   } = useLiveSession({
-    apiKey: import.meta.env.VITE_GEMINI_API_KEY as string,
     voiceName: 'Kore',
     systemInstruction: combinedInstruction,
     omitGlobalOS: mode === 'tutorial'
