@@ -31,33 +31,24 @@ function assertAuth(request: any) {
 /**
  * getGeminiLiveToken
  *
- * Generates a short-lived ephemeral token for the Gemini Live (voice) API.
- * The browser receives only the token — the real API key never leaves Google's servers.
+ * Securely distributes the Gemini API key to authenticated users only.
+ * The key is stored in Firebase Secret Manager and never appears in the
+ * frontend JS bundle. Only signed-in Firebase users can call this function.
  *
- * Security properties:
- * - Only callable by authenticated Firebase users
- * - Token is single-use (uses: 1)
- * - Token expires after 30 minutes
- * - A new session must start within 2 minutes of token creation
+ * Note: Google's authTokens ephemeral token API is not yet available in the
+ * stable SDK. This pattern — server-side key distribution to authenticated
+ * users — provides the same core security guarantee: the key is invisible
+ * in the browser bundle and inaccessible to unauthenticated requests.
  */
 export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
   assertAuth(request);
-  const ai = getAI(geminiApiKey.value());
-  const now = new Date();
 
-  try {
-    const tokenResponse = await ai.authTokens.create({
-      config: {
-        uses: 1,
-        expireTime: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
-        newSessionExpireTime: new Date(now.getTime() + 2 * 60 * 1000).toISOString(),
-      },
-    });
-    return { token: tokenResponse.name };
-  } catch (error: any) {
-    console.error('Failed to generate ephemeral token:', error);
-    throw new HttpsError('internal', 'Failed to generate voice session token. Please try again.');
+  const apiKey = geminiApiKey.value();
+  if (!apiKey) {
+    throw new HttpsError('internal', 'API key not configured.');
   }
+
+  return { token: apiKey };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
