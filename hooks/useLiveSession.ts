@@ -118,7 +118,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       `;
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-2.0-flash-exp',
         callbacks: {
           onopen: () => {
             console.debug("LiveSession: Connection opened.");
@@ -170,7 +170,10 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, 24000);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          // Only attempt to send if the session is actually active
+          if (status === 'active') {
+            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          }
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
         });
