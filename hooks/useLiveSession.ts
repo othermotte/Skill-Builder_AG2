@@ -135,12 +135,9 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
               }
             });
           },
-          onmessage: (msg) => {
-            console.log("[Server] Received message:", msg);
-            handleServerMessage(msg);
-          },
+          onmessage: (msg) => handleServerMessage(msg),
           onclose: (e) => {
-            console.log("LiveSession: Connection closed.", e);
+            console.debug("LiveSession: Connection closed.", e);
             setStatus('idle');
           },
           onerror: (e) => {
@@ -173,11 +170,6 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, 24000);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          // Log if we are getting actual audio levels
-          const hasAudio = inputData.some(v => Math.abs(v) > 0.01);
-          if (Math.random() < 0.01) {
-            console.log("[Audio Flow] Mic status:", hasAudio ? "🔊 Hearing Sound" : "🔇 Silence");
-          }
           session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
