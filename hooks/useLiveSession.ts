@@ -118,7 +118,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       `;
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
             console.debug("LiveSession: Connection opened.");
