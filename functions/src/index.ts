@@ -42,12 +42,15 @@ function assertAuth(request: any) {
  */
 export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
   assertAuth(request);
+  console.log('getGeminiLiveToken: Auth verified for user', request.auth?.uid);
 
   const apiKey = geminiApiKey.value();
   if (!apiKey) {
+    console.error('getGeminiLiveToken: API key secret is missing!');
     throw new HttpsError('internal', 'API key not configured.');
   }
 
+  console.log('getGeminiLiveToken: Key retrieved from Secret Manager, returning to client.');
   return { token: apiKey };
 });
 

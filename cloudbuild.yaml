@@ -4,22 +4,22 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/skill-builder-ag-dev'
+      - 'gcr.io/$PROJECT_ID/skill-builder-ag'
       - '.'
 
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/skill-builder-ag-dev']
+    args: ['push', 'gcr.io/$PROJECT_ID/skill-builder-ag']
 
-  # Deploy container image to Cloud Run (dev service — separate from production)
+  # Deploy container image to Cloud Run (Production service)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'skill-builder-ag-dev'
+      - 'skill-builder-ag'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/skill-builder-ag-dev'
+      - 'gcr.io/$PROJECT_ID/skill-builder-ag'
       - '--region'
       - 'europe-west1'
       - '--platform'
@@ -27,7 +27,7 @@ steps:
       - '--allow-unauthenticated'
 
 images:
-  - 'gcr.io/$PROJECT_ID/skill-builder-ag-dev'
+  - 'gcr.io/$PROJECT_ID/skill-builder-ag'
 
 options:
   logging: CLOUD_LOGGING_ONLY

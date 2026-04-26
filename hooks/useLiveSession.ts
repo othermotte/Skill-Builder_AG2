@@ -182,9 +182,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       sourceRef.current = source;
       processorRef.current = processor;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("LiveSession: Error during connection setup", error);
       setStatus('error');
+      // If we have a specific error message from the Firebase function or SDK, use it
+      const msg = error?.message || "Connection failed. Please check your internet and try again.";
+      alert(`Connection Error: ${msg}`);
       cleanup();
     }
   }, [voiceName, systemInstruction, omitGlobalOS, cleanup]);
@@ -245,6 +248,29 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
     };
     update();
     return () => cancelAnimationFrame(frame);
+  }, [status]);
+
+  // Update the processor to check status before sending
+  useEffect(() => {
+    if (processorRef.current) {
+      processorRef.current.onaudioprocess = (e) => {
+        if (status !== 'active') return; // STOP the spam
+
+        const inputData = e.inputBuffer.getChannelData(0);
+        const downsampled = downsampleTo16k(inputData, 24000);
+        const b64Data = base64EncodeAudio(downsampled);
+        
+        sessionPromiseRef.current?.then((session) => {
+          try {
+            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          } catch (e) {
+            console.warn("LiveSession: Failed to send realtime input", e);
+          }
+        }).catch(err => {
+          console.warn("LiveSession: Failed to resolve session promise", err);
+        });
+      };
+    }
   }, [status]);
 
   return { status, connect, disconnect, volume, streamingText, transcript: transcriptRef.current };
