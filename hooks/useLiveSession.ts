@@ -167,7 +167,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(inputData, 24000);
+        const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
           // Only attempt to send if the session is actually active
