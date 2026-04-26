@@ -173,15 +173,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, 24000);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          if (status === 'active') {
-            // Log if we are getting actual audio levels
-            const hasAudio = inputData.some(v => Math.abs(v) > 0.01);
-            if (Math.random() < 0.01) {
-              console.log("[Audio Flow] Mic status:", hasAudio ? "🔊 Hearing Sound" : "🔇 Silence");
-              console.log("[Audio Flow] Streaming audio packets to Google...");
-            }
-            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          // Log if we are getting actual audio levels
+          const hasAudio = inputData.some(v => Math.abs(v) > 0.01);
+          if (Math.random() < 0.01) {
+            console.log("[Audio Flow] Mic status:", hasAudio ? "🔊 Hearing Sound" : "🔇 Silence");
           }
+          session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
         });
