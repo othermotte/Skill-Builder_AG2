@@ -135,7 +135,10 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
               }
             });
           },
-          onmessage: (msg) => handleServerMessage(msg),
+          onmessage: (msg) => {
+            console.debug("[Server] Received message:", msg);
+            handleServerMessage(msg);
+          },
           onclose: (e) => {
             console.debug("LiveSession: Connection closed.", e);
             setStatus('idle');
@@ -167,11 +170,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
+        const downsampled = downsampleTo16k(inputData, 24000);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          // Only attempt to send if the session is actually active
           if (status === 'active') {
+            // Log every ~2 seconds to show audio is flowing without spamming
+            if (Math.random() < 0.01) console.debug("[Audio Flow] Streaming audio packets to Google...");
             session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
           }
         }).catch(err => {
