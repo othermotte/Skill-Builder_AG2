@@ -196,7 +196,7 @@ ${memoryList}
       instructionAreaContent = lastEntry.text;
       belowMicText = 'Voice Active';
     } else if (transcript.length === 0) {
-      instructionAreaContent = "Tell the tutor when you’re ready.";
+      instructionAreaContent = "Listening for the tutor...";
       belowMicText = 'Voice Active';
       isNudge = true;
     } else {
@@ -209,7 +209,7 @@ ${memoryList}
     if (mode === 'tutorial' && !tutorInstruction) {
       belowMicText = "Loading tutor profile...";
     } else {
-      belowMicText = "Tap to start, then speak to tell the tutor you’re ready.";
+      belowMicText = "Tap to start and the tutor will welcome you.";
     }
   }
 
