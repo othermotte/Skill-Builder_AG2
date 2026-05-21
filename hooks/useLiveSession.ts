@@ -107,7 +107,10 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       const tokenResult = await getToken();
       const ephemeralToken = tokenResult.data.token;
 
-      const ai = new GoogleGenAI({ apiKey: ephemeralToken });
+      const ai = new GoogleGenAI({
+        apiKey: ephemeralToken,
+        httpOptions: { apiVersion: 'v1alpha' },
+      });
 
       const combinedInstruction = `
         ${globalOS}

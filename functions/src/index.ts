@@ -31,14 +31,8 @@ function assertAuth(request: any) {
 /**
  * getGeminiLiveToken
  *
- * Securely distributes the Gemini API key to authenticated users only.
- * The key is stored in Firebase Secret Manager and never appears in the
- * frontend JS bundle. Only signed-in Firebase users can call this function.
- *
- * Note: Google's authTokens ephemeral token API is not yet available in the
- * stable SDK. This pattern — server-side key distribution to authenticated
- * users — provides the same core security guarantee: the key is invisible
- * in the browser bundle and inaccessible to unauthenticated requests.
+ * Creates a short-lived, single-use Gemini Live auth token for the browser.
+ * The permanent API key stays in Secret Manager and is only used server-side.
  */
 export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
   assertAuth(request);
@@ -50,8 +44,29 @@ export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
     throw new HttpsError('internal', 'API key not configured.');
   }
 
-  console.log('getGeminiLiveToken: Key retrieved from Secret Manager, returning to client.');
-  return { token: apiKey };
+  const ai = getAI(apiKey);
+  const now = Date.now();
+  const newSessionExpireTime = new Date(now + 60 * 1000).toISOString();
+  const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
+
+  const token = await ai.authTokens.create({
+    config: {
+      uses: 1,
+      newSessionExpireTime,
+      expireTime,
+      liveConnectConstraints: {
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      },
+    },
+  });
+
+  if (!token.name) {
+    console.error('getGeminiLiveToken: Gemini did not return an auth token name.');
+    throw new HttpsError('internal', 'Unable to create Gemini Live token.');
+  }
+
+  console.log('getGeminiLiveToken: Ephemeral Live token created.');
+  return { token: token.name };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
