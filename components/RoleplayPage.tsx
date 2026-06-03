@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Scenario, Skill, PracticeSession, User, MicroSkill, SkillSnapshot } from '../types';
+import { Scenario, Skill, PracticeSession, User, MicroSkill, SkillSnapshot, TranscriptEntry } from '../types';
 import { getFeedbackForTranscript } from '../services/geminiService';
 import { MicIcon } from './icons/MicIcon';
 import { useLiveSession } from '../hooks/useLiveSession';
@@ -34,6 +34,7 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAiConcluded, setIsAiConcluded] = useState(false);
   const [tutorInstruction, setTutorInstruction] = useState<string | null>(null);
+  const [finalTranscript, setFinalTranscript] = useState<TranscriptEntry[]>([]);
 
   const targetSkill = skills.find(s => s.id === scenario.skillId);
 
@@ -82,15 +83,19 @@ ${memoryList}
 
   const {
     status,
+    errorMessage,
+    errorType,
     connect,
     disconnect,
     volume,
     streamingText,
-    transcript
+    transcript,
+    usageStatus
   } = useLiveSession({
     voiceName: 'Kore',
     systemInstruction: combinedInstruction,
-    omitGlobalOS: mode === 'tutorial'
+    omitGlobalOS: mode === 'tutorial',
+    mode
   });
 
   useEffect(() => {
@@ -114,12 +119,9 @@ ${memoryList}
   };
 
   const handleStop = async () => {
-    const finalTranscript = await disconnect();
-    if (finalTranscript.length === 0 && !streamingText) {
-      onBackToDashboard();
-    } else {
-      setShowFeedbackConfirm(true);
-    }
+    const stoppedTranscript = await disconnect();
+    setFinalTranscript(stoppedTranscript);
+    setShowFeedbackConfirm(true);
   };
 
   const handleGetFeedback = async () => {
@@ -127,13 +129,13 @@ ${memoryList}
     setShowFeedbackConfirm(false);
 
     try {
-      const response = await getFeedbackForTranscript(scenario, transcript, targetSkill?.name || 'Leadership', 'English');
+      const response = await getFeedbackForTranscript(scenario, finalTranscript, targetSkill?.name || 'Leadership', 'English');
 
       await onSessionEnd({
         id: '',
         userId: currentUser.id,
         scenarioId: scenario.id,
-        transcript: transcript,
+        transcript: finalTranscript,
         feedback: response.text?.replace(/```json/gi, '').replace(/```/g, '').trim(),
         timestamp: new Date().toISOString(),
         status: 'completed'
@@ -143,7 +145,7 @@ ${memoryList}
         id: '',
         userId: currentUser.id,
         scenarioId: scenario.id,
-        transcript: transcript,
+        transcript: finalTranscript,
         feedback: JSON.stringify({ error: true }),
         timestamp: new Date().toISOString(),
         status: 'completed'
@@ -171,8 +173,8 @@ ${memoryList}
     instructionAreaContent = 'Analyzing capability...';
     belowMicText = 'Processing...';
   } else if (status === 'error') {
-    instructionAreaContent = 'Connection error. Check mic access.';
-    belowMicText = 'Tap to retry';
+    instructionAreaContent = errorMessage || 'Connection error. Check mic access.';
+    belowMicText = errorType === 'limit' ? 'Daily limit reached' : 'Tap to retry';
   } else if (status === 'connecting') {
     instructionAreaContent = "Warming up...";
     belowMicText = 'Connecting...';
@@ -272,7 +274,7 @@ ${memoryList}
               />
               <div className="flex flex-col items-center gap-6">
                 <button
-                  onClick={(status === 'idle' || status === 'error') ? handleStart : handleStop}
+                  onClick={status === 'error' && errorType === 'limit' ? onBackToDashboard : (status === 'idle' || status === 'error') ? handleStart : handleStop}
                   disabled={status === 'connecting' || isAnalyzing || combinedInstruction === 'LOADING_INSTRUCTION'}
                   className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all z-10 shadow-xl active:scale-[0.9] ${status === 'active' ? (isAiConcluded ? 'bg-indigo-600 animate-bounce shadow-indigo-200 shadow-2xl' : 'bg-indigo-600') :
                     status === 'connecting' || isAnalyzing ? 'bg-gray-800 cursor-wait' : 'bg-black'
@@ -289,10 +291,15 @@ ${memoryList}
 
                 <div className="flex flex-col items-center text-center">
                   <span className={`text-[10px] font-black uppercase tracking-[0.15em] leading-relaxed max-w-[240px] ${isAiConcluded ? 'text-indigo-600 animate-pulse' :
-                    status === 'connecting' ? 'text-indigo-400 animate-pulse' : 'text-gray-400'
+                    status === 'connecting' ? 'text-indigo-400 animate-pulse' : status === 'error' ? 'text-rose-500' : 'text-gray-400'
                     }`}>
                     {belowMicText}
                   </span>
+                  {usageStatus && (
+                    <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest">
+                      {mode === 'tutorial' ? 'Tutorials' : 'Scenarios'} today: {Math.min(usageStatus.count, usageStatus.limit)}/{usageStatus.limit}, {usageStatus.remaining} remaining
+                    </span>
+                  )}
                   {status === 'active' && !isAiConcluded && (
                     <span className="text-[9px] text-gray-300 font-bold mt-2 uppercase tracking-widest animate-fade-in">Tap square to stop</span>
                   )}

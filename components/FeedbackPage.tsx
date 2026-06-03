@@ -180,11 +180,15 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
         const isShortTranscript = !practiceSession.transcript || practiceSession.transcript.length < 2;
         const canRetry = !isShortTranscript;
 
-        let errorTitle = isFeedbackStoredButUnparseable ? 'Analysis Mismatch' : 'Analysis Interrupted';
+        let errorTitle = isFeedbackStoredButUnparseable
+            ? 'Analysis Mismatch'
+            : isShortTranscript
+                ? 'Not Enough Conversation'
+                : 'Analysis Interrupted';
         let errorMessage = isFeedbackStoredButUnparseable
             ? "The assessment was generated but the formatting is inconsistent. You can try re-triggering it below."
             : isShortTranscript
-                ? "The voice connection dropped before a meaningful conversation could take place. Please return to the dashboard and try starting a new scenario."
+                ? "There was not enough dialogue captured to produce a useful assessment. Please return to the dashboard and try a new scenario, speaking for a little longer before stopping."
                 : "Something went wrong while generating your assessment. You can try re-triggering the analysis or return to your dashboard.";
 
         return (

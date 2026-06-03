@@ -1,10 +1,17 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { GoogleGenAI, Type } from '@google/genai';
 import { defineSecret } from 'firebase-functions/params';
+import { initializeApp } from 'firebase-admin/app';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+
+initializeApp();
 
 // The real API key is stored in Firebase Secret Manager.
 // It is NEVER visible in source code, logs, or the browser.
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const DAILY_DIAGNOSTIC_SESSION_LIMIT = 5;
+const DAILY_TUTORIAL_SESSION_LIMIT = 3;
+const DAILY_HELPER_AI_LIMIT = 12;
 
 // Shared function options
 const fnOptions = {
@@ -17,11 +24,101 @@ function getAI(secretValue: string) {
   return new GoogleGenAI({ apiKey: secretValue });
 }
 
+function getLiveAI(secretValue: string) {
+  return new GoogleGenAI({
+    apiKey: secretValue,
+    httpOptions: { apiVersion: 'v1alpha' },
+  });
+}
+
 // Helper to assert authenticated caller
 function assertAuth(request: any) {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  if (request.auth.token.email_verified === false) {
+    throw new HttpsError('permission-denied', 'You must verify your email before using AI practice.');
+  }
+}
+
+function dayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function usageDocId(uid: string, action: string, date = new Date()) {
+  return `${uid}_${action}_${dayKey(date)}`;
+}
+
+async function recordGeminiUsage(
+  request: any,
+  action: 'diagnostic_session' | 'tutorial_session' | 'assessment' | 'micro_skill_suggestions' | 'skill_snapshot' | 'practice_reflection',
+  limit: number
+) {
+  assertAuth(request);
+
+  const db = getFirestore();
+  const uid = request.auth.uid;
+  const email = request.auth.token.email || null;
+  const today = dayKey();
+  const usageRef = db.collection('geminiUsageDaily').doc(usageDocId(uid, action));
+
+  const count = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(usageRef);
+    const currentCount = snap.exists ? Number(snap.data()?.count || 0) : 0;
+    const nextCount = currentCount + 1;
+
+    if (nextCount > limit) {
+      return nextCount;
+    }
+
+    transaction.set(usageRef, {
+      uid,
+      email,
+      action,
+      day: today,
+      count: nextCount,
+      limit,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: snap.exists ? snap.data()?.createdAt || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return nextCount;
+  });
+
+  await db.collection('geminiUsageLogs').add({
+    uid,
+    email,
+    action,
+    day: today,
+    count,
+    limit,
+    allowed: count <= limit,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  if (count >= limit) {
+    await db.collection('geminiUsageAlerts').add({
+      uid,
+      email,
+      action,
+      day: today,
+      count,
+      limit,
+      severity: count > limit ? 'blocked' : 'limit_reached',
+      message: `${email || uid} ${count > limit ? 'exceeded' : 'reached'} the daily ${action} limit.`,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  if (count > limit) {
+    throw new HttpsError(
+      'resource-exhausted',
+      `Daily AI practice limit reached. Please try again tomorrow.`,
+      { count, limit, remaining: 0 }
+    );
+  }
+
+  return { count, limit, remaining: Math.max(limit - count, 0) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,16 +132,19 @@ function assertAuth(request: any) {
  * The permanent API key stays in Secret Manager and is only used server-side.
  */
 export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
-  assertAuth(request);
-  console.log('getGeminiLiveToken: Auth verified for user', request.auth?.uid);
+  const sessionMode = request.data?.mode === 'tutorial' ? 'tutorial' : 'diagnostic';
+  const usage = await recordGeminiUsage(
+    request,
+    sessionMode === 'tutorial' ? 'tutorial_session' : 'diagnostic_session',
+    sessionMode === 'tutorial' ? DAILY_TUTORIAL_SESSION_LIMIT : DAILY_DIAGNOSTIC_SESSION_LIMIT
+  );
 
   const apiKey = geminiApiKey.value();
   if (!apiKey) {
-    console.error('getGeminiLiveToken: API key secret is missing!');
     throw new HttpsError('internal', 'API key not configured.');
   }
 
-  const ai = getAI(apiKey);
+  const ai = getLiveAI(apiKey);
   const now = Date.now();
   const newSessionExpireTime = new Date(now + 60 * 1000).toISOString();
   const expireTime = new Date(now + 30 * 60 * 1000).toISOString();
@@ -57,16 +157,15 @@ export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
       liveConnectConstraints: {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
       },
+      httpOptions: { apiVersion: 'v1alpha' },
     },
   });
 
   if (!token.name) {
-    console.error('getGeminiLiveToken: Gemini did not return an auth token name.');
     throw new HttpsError('internal', 'Unable to create Gemini Live token.');
   }
 
-  console.log('getGeminiLiveToken: Ephemeral Live token created.');
-  return { token: token.name };
+  return { token: token.name, usage };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,7 +249,7 @@ export const getFeedbackForTranscript = onCall(
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-3-pro-preview',
         contents: prompt,
         config: { responseMimeType: 'application/json', responseSchema },
       });
@@ -169,7 +268,7 @@ export const getFeedbackForTranscript = onCall(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getMicroSkillSuggestions = onCall(fnOptions, async (request) => {
-  assertAuth(request);
+  await recordGeminiUsage(request, 'micro_skill_suggestions', DAILY_HELPER_AI_LIMIT);
   const { transcript, feedback, skillLibrary } = request.data;
 
   const ai = getAI(geminiApiKey.value());
@@ -242,7 +341,7 @@ export const getMicroSkillSuggestions = onCall(fnOptions, async (request) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const generateSkillSnapshot = onCall(fnOptions, async (request) => {
-  assertAuth(request);
+  await recordGeminiUsage(request, 'skill_snapshot', DAILY_HELPER_AI_LIMIT);
   const { microSkillLabel, evidence, history } = request.data;
 
   const ai = getAI(geminiApiKey.value());
@@ -308,7 +407,7 @@ export const generateSkillSnapshot = onCall(fnOptions, async (request) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const analyzePracticeReflection = onCall(fnOptions, async (request) => {
-  assertAuth(request);
+  await recordGeminiUsage(request, 'practice_reflection', DAILY_HELPER_AI_LIMIT);
   const { transcript, microSkillLabel } = request.data;
 
   const ai = getAI(geminiApiKey.value());

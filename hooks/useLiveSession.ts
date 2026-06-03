@@ -7,19 +7,31 @@ import { getGlobalFacilitatorContract } from '../services/firebase';
 import { functions } from '../firebaseConfig';
 
 export type SessionStatus = 'idle' | 'connecting' | 'active' | 'error';
+export type SessionErrorType = 'connection' | 'limit' | null;
+
+interface UsageStatus {
+  count: number;
+  limit: number;
+  remaining: number;
+}
 
 interface UseLiveSessionProps {
   voiceName: string;
   systemInstruction: string;
   omitGlobalOS?: boolean;
+  mode?: 'diagnostic' | 'tutorial';
 }
 
-export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = false }: UseLiveSessionProps) => {
+export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = false, mode = 'diagnostic' }: UseLiveSessionProps) => {
   const [status, setStatus] = useState<SessionStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<SessionErrorType>(null);
   const [volume, setVolume] = useState(0);
   const [streamingText, setStreamingText] = useState('');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
 
+  const statusRef = useRef<SessionStatus>('idle');
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -42,6 +54,14 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   }, []);
 
   const cleanup = useCallback(async () => {
+    if (sessionPromiseRef.current) {
+      try {
+        const session = await sessionPromiseRef.current;
+        session.close();
+      } catch (e) { }
+      sessionPromiseRef.current = null;
+    }
+
     stopAllAudio();
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
@@ -59,7 +79,6 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       }
       audioContextRef.current = null;
     }
-    sessionPromiseRef.current = null;
     nextStartTimeRef.current = 0;
     setVolume(0);
     setStreamingText('');
@@ -77,6 +96,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       setTranscript(transcriptRef.current);
     }
     await cleanup();
+    statusRef.current = 'idle';
     setStatus('idle');
     return transcriptRef.current;
   }, [cleanup]);
@@ -85,6 +105,9 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
     try {
       setStatus('connecting');
+      statusRef.current = 'connecting';
+      setErrorMessage(null);
+      setErrorType(null);
       setTranscript([]);
       transcriptRef.current = [];
       userTranscriptBuffer.current = '';
@@ -94,8 +117,13 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = ctx;
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(err => {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      }).catch(err => {
         console.error("LiveSession: Microphone access denied", err);
         throw err;
       });
@@ -103,9 +131,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
       // Fetch a short-lived ephemeral token from the secure Cloud Function.
       // The real API key never touches the browser.
-      const getToken = httpsCallable<void, { token: string }>(functions, 'getGeminiLiveToken');
-      const tokenResult = await getToken();
+      const getToken = httpsCallable<{ mode: 'diagnostic' | 'tutorial' }, { token: string; usage?: UsageStatus }>(functions, 'getGeminiLiveToken');
+      const tokenResult = await getToken({ mode });
       const ephemeralToken = tokenResult.data.token;
+      if (tokenResult.data.usage) {
+        setUsageStatus(tokenResult.data.usage);
+      }
 
       const ai = new GoogleGenAI({
         apiKey: ephemeralToken,
@@ -124,8 +155,10 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            console.debug("LiveSession: Connection opened.");
+            console.log("LiveSession: Connection opened.");
+            statusRef.current = 'active';
             setStatus('active');
+            setErrorMessage(null);
             // Automatically send an invisible text prompt to kick off the AI's greeting
             sessionPromiseRef.current?.then((session) => {
               try {
@@ -140,11 +173,30 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
           },
           onmessage: (msg) => handleServerMessage(msg),
           onclose: (e) => {
-            console.debug("LiveSession: Connection closed.", e);
-            setStatus('idle');
+            const closeReason = e.reason || '';
+            const isUnexpectedClose = e.code !== 1000 && e.code !== 1001;
+            const isBillingClose = closeReason.toLowerCase().includes('prepayment') || closeReason.toLowerCase().includes('credits');
+            console.log(`LiveSession: Connection closed. Code: ${e.code}. Reason: ${closeReason || 'none'}`);
+            if (statusRef.current === 'connecting' || (statusRef.current === 'active' && isUnexpectedClose)) {
+              statusRef.current = 'error';
+              setErrorType('connection');
+              setErrorMessage(
+                isBillingClose
+                  ? 'Gemini Live is blocked because the API project has no available prepaid credit. Please complete the Gemini API billing/prepayment step in Google AI Studio, then try again.'
+                  : `Gemini Live closed unexpectedly. Code: ${e.code || 'unknown'}${closeReason ? `: ${closeReason}` : ''}`
+              );
+              setStatus('error');
+            } else {
+              statusRef.current = 'idle';
+              setStatus('idle');
+            }
+            cleanup();
           },
           onerror: (e) => {
             console.error("LiveSession: Connection error.", e);
+            statusRef.current = 'error';
+            setErrorType('connection');
+            setErrorMessage('Connection failed. Please check your microphone and try again.');
             setStatus('error');
             cleanup();
           }
@@ -169,8 +221,9 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
       const processor = ctx.createScriptProcessor(4096, 1, 1);
       processor.onaudioprocess = (e) => {
+        if (statusRef.current !== 'active') return;
         const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(inputData, 24000);
+        const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
           session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
@@ -187,13 +240,21 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
     } catch (error: any) {
       console.error("LiveSession: Error during connection setup", error);
+      const details = error?.details as UsageStatus | undefined;
+      if (details?.limit) {
+        setUsageStatus(details);
+        statusRef.current = 'error';
+        setErrorType('limit');
+        setErrorMessage(`Daily ${mode === 'tutorial' ? 'micro-skill tutorial' : 'scenario'} limit reached. You have used ${Math.min(details.count, details.limit)} of ${details.limit} today.`);
+      } else {
+        statusRef.current = 'error';
+        setErrorType('connection');
+        setErrorMessage(error?.message || "Connection failed. Please check your internet and try again.");
+      }
       setStatus('error');
-      // If we have a specific error message from the Firebase function or SDK, use it
-      const msg = error?.message || "Connection failed. Please check your internet and try again.";
-      alert(`Connection Error: ${msg}`);
       cleanup();
     }
-  }, [voiceName, systemInstruction, omitGlobalOS, cleanup]);
+  }, [voiceName, systemInstruction, omitGlobalOS, mode, cleanup]);
 
   const handleServerMessage = async (message: LiveServerMessage) => {
     const ctx = audioContextRef.current;
@@ -257,10 +318,10 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   useEffect(() => {
     if (processorRef.current) {
       processorRef.current.onaudioprocess = (e) => {
-        if (status !== 'active') return; // STOP the spam
+        if (statusRef.current !== 'active') return; // STOP the spam
 
         const inputData = e.inputBuffer.getChannelData(0);
-        const downsampled = downsampleTo16k(inputData, 24000);
+        const downsampled = downsampleTo16k(inputData, audioContextRef.current?.sampleRate || 24000);
         const b64Data = base64EncodeAudio(downsampled);
         
         sessionPromiseRef.current?.then((session) => {
@@ -276,5 +337,5 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
     }
   }, [status]);
 
-  return { status, connect, disconnect, volume, streamingText, transcript: transcriptRef.current };
+  return { status, errorMessage, errorType, connect, disconnect, volume, streamingText, transcript: transcriptRef.current, usageStatus };
 };
