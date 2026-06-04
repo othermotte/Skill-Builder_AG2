@@ -29,7 +29,7 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'skill-builder-ag'
+      - 'leadership-skill-builder'
       - '--image'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/skill-builder/skill-builder:$BUILD_ID'
       - '--region'

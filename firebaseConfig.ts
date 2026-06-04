@@ -7,7 +7,7 @@ import { getFunctions } from "firebase/functions";
 /**
  * FIREBASE CONFIGURATION - LEADERSHIP SKILL BUILDER
  * 
- * Configured for project: leadership-skill-builder-ag
+ * Configured for project: leadership-skill-builder-7aba5
  */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
