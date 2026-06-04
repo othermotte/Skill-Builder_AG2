@@ -143,12 +143,21 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         httpOptions: { apiVersion: 'v1alpha' },
       });
 
+      const openingInstruction = mode === 'tutorial'
+        ? `The learner has just connected. Welcome them briefly, explain that you will begin with a short practice challenge, and invite them into the first rep.`
+        : `The participant has already read the scenario and is ready. Begin the assessment immediately with one neutral, scenario-specific question that probes their reasoning. Do not give a generic greeting, ask whether they are ready, or repeat the scenario.`;
+
+      const initialPrompt = mode === 'tutorial'
+        ? 'I am ready to begin the micro-skill practice. Please start the first rep.'
+        : 'I have read the scenario and am ready. Begin the assessment with your first scenario-specific question.';
+
       const combinedInstruction = `
         ${globalOS}
 
         ${systemInstruction}
-        
-        The user has just connected to the voice session. Your first action MUST be to greet them warmly, confirm you are ready, and ask them to begin. Do NOT wait for them to speak first.
+
+        ### SESSION OPENING
+        ${openingInstruction}
       `;
 
       const sessionPromise = ai.live.connect({
@@ -163,7 +172,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
             sessionPromiseRef.current?.then((session) => {
               try {
                 session.sendClientContent({
-                  turns: [{ role: 'user', parts: [{ text: 'Hello. I am ready to begin the scenario. Please greet me.' }] }],
+                  turns: [{ role: 'user', parts: [{ text: initialPrompt }] }],
                   turnComplete: true
                 });
               } catch (e) {

@@ -161,7 +161,11 @@ Ask:
 
 # 2. Opening the conversation
 
-Start with a neutral question such as:
+The participant has already read the scenario and indicated they are ready by starting the session.
+
+Begin immediately with one neutral, scenario-specific question. Do not give a generic welcome, ask whether they are ready, or repeat the scenario.
+
+Examples:
 
 - "How would you begin responding to this situation?"
 - "What factors would you prioritise first?"

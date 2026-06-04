@@ -211,7 +211,9 @@ ${memoryList}
     if (mode === 'tutorial' && !tutorInstruction) {
       belowMicText = "Loading tutor profile...";
     } else {
-      belowMicText = "Tap to start and the tutor will welcome you.";
+      belowMicText = mode === 'tutorial'
+        ? "Tap to start and begin the tutorial."
+        : "Tap to start the scenario exploration.";
     }
   }
 
