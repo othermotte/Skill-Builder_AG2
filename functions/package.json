@@ -1,6 +1,6 @@
 {
   "name": "skill-builder-functions",
-  "description": "Firebase Cloud Functions for Skill Builder AG",
+  "description": "Firebase Cloud Functions for Leadership Skill Builder",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
