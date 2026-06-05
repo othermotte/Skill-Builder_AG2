@@ -71,9 +71,26 @@ ${memoryList}
 
   const diagnosticInstruction = `
     ### DIAGNOSTIC MODE: ASSESSOR PERSONA
-    Probe deeply into the participant’s thinking in a structured, neutral way. Collect evidence of reasoning.
-    ${targetSkill ? `Prioritize evidence for: "${targetSkill.name}".` : ""}
+    You are facilitating exactly one leadership diagnostic scenario.
+    Do not invent a new scenario, role play, customer-service interaction, branch setting, or case context.
+    Ask questions only about the scenario below.
+
+    ### SELECTED SCENARIO
+    Title: ${scenario.title}
+
+    Description:
     ${scenario.description}
+
+    Scenario-specific probing guidance:
+    ${scenario.instruction || 'Probe the participant’s reasoning, judgement, assumptions, stakeholder awareness, and trade-offs.'}
+
+    Assessment focus:
+    ${targetSkill ? targetSkill.name : 'Leadership judgement'}
+
+    Rubric note:
+    ${scenario.rubric || 'Evaluate only evidence from the participant’s responses.'}
+
+    Probe deeply into the participant’s thinking in a structured, neutral way. Collect evidence of reasoning.
   `;
 
   // Provide a safe fallback but explicitly flag when it's loading.
