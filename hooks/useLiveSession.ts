@@ -45,6 +45,23 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   const userTranscriptBuffer = useRef<string>('');
   const aiTranscriptBuffer = useRef<string>('');
 
+  const appendTranscript = useCallback((entry: TranscriptEntry) => {
+    transcriptRef.current = [...transcriptRef.current, entry];
+    setTranscript(transcriptRef.current);
+  }, []);
+
+  const flushTranscriptBuffers = useCallback(() => {
+    if (userTranscriptBuffer.current.trim()) {
+      appendTranscript({ speaker: 'user', text: userTranscriptBuffer.current.trim() });
+      userTranscriptBuffer.current = '';
+    }
+    if (aiTranscriptBuffer.current.trim()) {
+      appendTranscript({ speaker: 'ai', text: aiTranscriptBuffer.current.trim() });
+      aiTranscriptBuffer.current = '';
+    }
+    return transcriptRef.current;
+  }, [appendTranscript]);
+
   const stopAllAudio = useCallback(() => {
     audioSourcesRef.current.forEach(source => {
       try { source.stop(); } catch (e) { }
@@ -85,21 +102,13 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   }, [stopAllAudio]);
 
   const disconnect = useCallback(async () => {
-    if (userTranscriptBuffer.current.trim()) {
-      const entry: TranscriptEntry = { speaker: 'user', text: userTranscriptBuffer.current.trim() };
-      transcriptRef.current = [...transcriptRef.current, entry];
-      setTranscript(transcriptRef.current);
-    }
-    if (aiTranscriptBuffer.current.trim()) {
-      const entry: TranscriptEntry = { speaker: 'ai', text: aiTranscriptBuffer.current.trim() };
-      transcriptRef.current = [...transcriptRef.current, entry];
-      setTranscript(transcriptRef.current);
-    }
+    const finalTranscript = flushTranscriptBuffers();
+    console.log(`LiveSession: Disconnecting with ${finalTranscript.length} transcript entries.`);
     await cleanup();
     statusRef.current = 'idle';
     setStatus('idle');
-    return transcriptRef.current;
-  }, [cleanup]);
+    return finalTranscript;
+  }, [cleanup, flushTranscriptBuffers]);
 
   const connect = useCallback(async () => {
 
@@ -267,24 +276,24 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
   const handleServerMessage = async (message: LiveServerMessage) => {
     const ctx = audioContextRef.current;
-    if (!ctx || !message.serverContent) return;
+    const serverContent = message.serverContent;
+    if (!serverContent) return;
 
-    if (message.serverContent.interrupted) stopAllAudio();
+    if (serverContent.interrupted) stopAllAudio();
 
-    if (message.serverContent.inputTranscription) {
-      userTranscriptBuffer.current += message.serverContent.inputTranscription.text || '';
+    if (serverContent.inputTranscription) {
+      userTranscriptBuffer.current += serverContent.inputTranscription.text || '';
       setStreamingText(userTranscriptBuffer.current);
     }
-    if (message.serverContent.outputTranscription) {
-      aiTranscriptBuffer.current += message.serverContent.outputTranscription.text || '';
+    if (serverContent.outputTranscription) {
+      aiTranscriptBuffer.current += serverContent.outputTranscription.text || '';
       setStreamingText(aiTranscriptBuffer.current);
     }
 
-    const audioData = message.serverContent.modelTurn?.parts?.[0]?.inlineData?.data;
-    if (audioData) {
+    const audioData = serverContent.modelTurn?.parts?.find((part) => part.inlineData)?.inlineData?.data;
+    if (ctx && audioData) {
       if (userTranscriptBuffer.current.trim()) {
-        transcriptRef.current = [...transcriptRef.current, { speaker: 'user', text: userTranscriptBuffer.current.trim() }];
-        setTranscript(transcriptRef.current);
+        appendTranscript({ speaker: 'user', text: userTranscriptBuffer.current.trim() });
         userTranscriptBuffer.current = '';
       }
       const bytes = decodeBase64ToBytes(audioData);
@@ -299,12 +308,8 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       source.onended = () => audioSourcesRef.current.delete(source);
     }
 
-    if (message.serverContent.turnComplete) {
-      if (aiTranscriptBuffer.current.trim()) {
-        transcriptRef.current = [...transcriptRef.current, { speaker: 'ai', text: aiTranscriptBuffer.current.trim() }];
-        setTranscript(transcriptRef.current);
-        aiTranscriptBuffer.current = '';
-      }
+    if (serverContent.turnComplete) {
+      flushTranscriptBuffers();
       setStreamingText('');
     }
   };
