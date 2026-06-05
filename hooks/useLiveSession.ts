@@ -102,6 +102,15 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   }, [stopAllAudio]);
 
   const disconnect = useCallback(async () => {
+    if (sessionPromiseRef.current) {
+      try {
+        const session = await sessionPromiseRef.current;
+        session.sendRealtimeInput({ audioStreamEnd: true });
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (e) {
+        console.warn("LiveSession: Failed to flush audio stream before disconnect", e);
+      }
+    }
     const finalTranscript = flushTranscriptBuffers();
     console.log(`LiveSession: Disconnecting with ${finalTranscript.length} transcript entries.`);
     await cleanup();
@@ -244,7 +253,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
         });
@@ -283,10 +292,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
     if (serverContent.inputTranscription) {
       userTranscriptBuffer.current += serverContent.inputTranscription.text || '';
+      console.debug("LiveSession: Received input transcription chunk.");
       setStreamingText(userTranscriptBuffer.current);
     }
     if (serverContent.outputTranscription) {
       aiTranscriptBuffer.current += serverContent.outputTranscription.text || '';
+      console.debug("LiveSession: Received output transcription chunk.");
       setStreamingText(aiTranscriptBuffer.current);
     }
 
@@ -340,7 +351,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         
         sessionPromiseRef.current?.then((session) => {
           try {
-            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+            session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
           } catch (e) {
             console.warn("LiveSession: Failed to send realtime input", e);
           }
