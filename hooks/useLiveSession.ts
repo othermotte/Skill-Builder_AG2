@@ -20,9 +20,11 @@ interface UseLiveSessionProps {
   systemInstruction: string;
   omitGlobalOS?: boolean;
   mode?: 'diagnostic' | 'tutorial';
+  initialPrompt?: string;
+  debugLabel?: string;
 }
 
-export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = false, mode = 'diagnostic' }: UseLiveSessionProps) => {
+export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = false, mode = 'diagnostic', initialPrompt: initialPromptOverride, debugLabel }: UseLiveSessionProps) => {
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<SessionErrorType>(null);
@@ -102,15 +104,6 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   }, [stopAllAudio]);
 
   const disconnect = useCallback(async () => {
-    if (sessionPromiseRef.current) {
-      try {
-        const session = await sessionPromiseRef.current;
-        session.sendRealtimeInput({ audioStreamEnd: true });
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (e) {
-        console.warn("LiveSession: Failed to flush audio stream before disconnect", e);
-      }
-    }
     const finalTranscript = flushTranscriptBuffers();
     console.log(`LiveSession: Disconnecting with ${finalTranscript.length} transcript entries.`);
     await cleanup();
@@ -165,9 +158,9 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         ? `The learner has just connected. Welcome them briefly, explain that you will begin with a short practice challenge, and invite them into the first rep.`
         : `The participant has already read the scenario and is ready. Begin the assessment immediately with one neutral, scenario-specific question that probes their reasoning. Do not give a generic greeting, ask whether they are ready, or repeat the scenario.`;
 
-      const initialPrompt = mode === 'tutorial'
+      const initialPrompt = initialPromptOverride || (mode === 'tutorial'
         ? 'I am ready to begin the micro-skill practice. Please start the first rep.'
-        : 'I have read the scenario and am ready. Begin the assessment with your first scenario-specific question.';
+        : 'I have read the scenario and am ready. Begin the assessment with your first scenario-specific question.');
 
       const combinedInstruction = `
         ${globalOS}
@@ -177,6 +170,14 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         ### SESSION OPENING
         ${openingInstruction}
       `;
+
+      console.log("LiveSession: Starting Gemini Live session.", {
+        mode,
+        label: debugLabel || null,
+        systemInstructionChars: combinedInstruction.length,
+        initialPromptChars: initialPrompt.length,
+        initialPromptPreview: initialPrompt.slice(0, 500),
+      });
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -253,7 +254,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
         });
@@ -351,7 +352,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         
         sessionPromiseRef.current?.then((session) => {
           try {
-            session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
           } catch (e) {
             console.warn("LiveSession: Failed to send realtime input", e);
           }

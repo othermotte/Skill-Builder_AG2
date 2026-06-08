@@ -93,6 +93,20 @@ ${memoryList}
     Probe deeply into the participant’s thinking in a structured, neutral way. Collect evidence of reasoning.
   `;
 
+  const diagnosticInitialPrompt = `
+    I am ready to begin the diagnostic assessment for this exact scenario.
+
+    Scenario title: ${scenario.title}
+
+    Scenario description:
+    ${scenario.description}
+
+    Scenario-specific probing guidance:
+    ${scenario.instruction || 'Probe my reasoning, judgement, assumptions, stakeholder awareness, and trade-offs.'}
+
+    Start now with one neutral, scenario-specific question about this scenario only. Do not invent any other role play, tax, customer-service, branch, or unrelated context.
+  `;
+
   // Provide a safe fallback but explicitly flag when it's loading.
   const combinedInstruction = mode === 'tutorial'
     ? (tutorInstruction || 'LOADING_INSTRUCTION')
@@ -112,7 +126,9 @@ ${memoryList}
     voiceName: 'Kore',
     systemInstruction: combinedInstruction,
     omitGlobalOS: mode === 'tutorial',
-    mode
+    mode,
+    initialPrompt: mode === 'diagnostic' ? diagnosticInitialPrompt : undefined,
+    debugLabel: mode === 'diagnostic' ? `${scenario.id}: ${scenario.title}` : practiceMode?.microSkill.label
   });
 
   useEffect(() => {
