@@ -15,6 +15,24 @@ interface UsageStatus {
   remaining: number;
 }
 
+interface TranscriptDebugState {
+  inputChunkCount: number;
+  outputChunkCount: number;
+  inputBuffer: string;
+  outputBuffer: string;
+  transcriptCount: number;
+  lastServerContentKeys: string[];
+}
+
+const initialTranscriptDebug: TranscriptDebugState = {
+  inputChunkCount: 0,
+  outputChunkCount: 0,
+  inputBuffer: '',
+  outputBuffer: '',
+  transcriptCount: 0,
+  lastServerContentKeys: [],
+};
+
 interface UseLiveSessionProps {
   voiceName: string;
   systemInstruction: string;
@@ -32,6 +50,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   const [streamingText, setStreamingText] = useState('');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
+  const [transcriptDebug, setTranscriptDebug] = useState<TranscriptDebugState>(initialTranscriptDebug);
 
   const statusRef = useRef<SessionStatus>('idle');
   const transcriptRef = useRef<TranscriptEntry[]>([]);
@@ -50,6 +69,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
   const appendTranscript = useCallback((entry: TranscriptEntry) => {
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript(transcriptRef.current);
+    setTranscriptDebug(prev => ({ ...prev, transcriptCount: transcriptRef.current.length }));
   }, []);
 
   const flushTranscriptBuffers = useCallback(() => {
@@ -123,6 +143,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       transcriptRef.current = [];
       userTranscriptBuffer.current = '';
       aiTranscriptBuffer.current = '';
+      setTranscriptDebug(initialTranscriptDebug);
 
       const globalOS = omitGlobalOS ? '' : await getGlobalFacilitatorContract();
 
@@ -140,23 +161,9 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       });
       mediaStreamRef.current = stream;
 
-      // Fetch a short-lived ephemeral token from the secure Cloud Function.
-      // The real API key never touches the browser.
-      const getToken = httpsCallable<{ mode: 'diagnostic' | 'tutorial' }, { token: string; usage?: UsageStatus }>(functions, 'getGeminiLiveToken');
-      const tokenResult = await getToken({ mode });
-      const ephemeralToken = tokenResult.data.token;
-      if (tokenResult.data.usage) {
-        setUsageStatus(tokenResult.data.usage);
-      }
-
-      const ai = new GoogleGenAI({
-        apiKey: ephemeralToken,
-        httpOptions: { apiVersion: 'v1alpha' },
-      });
-
       const openingInstruction = mode === 'tutorial'
         ? `The learner has just connected. Welcome them briefly, explain that you will begin with a short practice challenge, and invite them into the first rep.`
-        : `The participant has already read the scenario and is ready. Begin the assessment immediately with one neutral, scenario-specific question that probes their reasoning. Do not give a generic greeting, ask whether they are ready, or repeat the scenario.`;
+        : `The participant has already read the scenario and is ready. Your first spoken message must be exactly: "How would you tackle this scenario?" Do not give a generic greeting, ask what they want to discuss, ask whether they are ready, or repeat the scenario. After the participant answers, continue with one neutral question at a time to probe their reasoning.`;
 
       const initialPrompt = initialPromptOverride || (mode === 'tutorial'
         ? 'I am ready to begin the micro-skill practice. Please start the first rep.'
@@ -170,6 +177,24 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         ### SESSION OPENING
         ${openingInstruction}
       `;
+
+      // Fetch a short-lived ephemeral token from the secure Cloud Function.
+      // The real API key never touches the browser. The token is constrained to
+      // the same Live setup config this client will use below.
+      const getToken = httpsCallable<
+        { mode: 'diagnostic' | 'tutorial'; systemInstruction: string; voiceName: string },
+        { token: string; usage?: UsageStatus }
+      >(functions, 'getGeminiLiveToken');
+      const tokenResult = await getToken({ mode, systemInstruction: combinedInstruction, voiceName });
+      const ephemeralToken = tokenResult.data.token;
+      if (tokenResult.data.usage) {
+        setUsageStatus(tokenResult.data.usage);
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: ephemeralToken,
+        httpOptions: { apiVersion: 'v1alpha' },
+      });
 
       console.log("LiveSession: Starting Gemini Live session.", {
         mode,
@@ -282,23 +307,38 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       setStatus('error');
       cleanup();
     }
-  }, [voiceName, systemInstruction, omitGlobalOS, mode, cleanup]);
+  }, [voiceName, systemInstruction, omitGlobalOS, mode, initialPromptOverride, debugLabel, cleanup]);
 
   const handleServerMessage = async (message: LiveServerMessage) => {
     const ctx = audioContextRef.current;
     const serverContent = message.serverContent;
     if (!serverContent) return;
 
+    setTranscriptDebug(prev => ({
+      ...prev,
+      lastServerContentKeys: Object.keys(serverContent),
+    }));
+
     if (serverContent.interrupted) stopAllAudio();
 
     if (serverContent.inputTranscription) {
       userTranscriptBuffer.current += serverContent.inputTranscription.text || '';
-      console.debug("LiveSession: Received input transcription chunk.");
+      console.debug("LiveSession: Received input transcription chunk.", serverContent.inputTranscription.text || '');
+      setTranscriptDebug(prev => ({
+        ...prev,
+        inputChunkCount: prev.inputChunkCount + 1,
+        inputBuffer: userTranscriptBuffer.current,
+      }));
       setStreamingText(userTranscriptBuffer.current);
     }
     if (serverContent.outputTranscription) {
       aiTranscriptBuffer.current += serverContent.outputTranscription.text || '';
-      console.debug("LiveSession: Received output transcription chunk.");
+      console.debug("LiveSession: Received output transcription chunk.", serverContent.outputTranscription.text || '');
+      setTranscriptDebug(prev => ({
+        ...prev,
+        outputChunkCount: prev.outputChunkCount + 1,
+        outputBuffer: aiTranscriptBuffer.current,
+      }));
       setStreamingText(aiTranscriptBuffer.current);
     }
 
@@ -307,6 +347,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       if (userTranscriptBuffer.current.trim()) {
         appendTranscript({ speaker: 'user', text: userTranscriptBuffer.current.trim() });
         userTranscriptBuffer.current = '';
+        setTranscriptDebug(prev => ({ ...prev, inputBuffer: '' }));
       }
       const bytes = decodeBase64ToBytes(audioData);
       const audioBuffer = pcmToAudioBuffer(bytes, ctx, 24000);
@@ -322,6 +363,12 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
     if (serverContent.turnComplete) {
       flushTranscriptBuffers();
+      setTranscriptDebug(prev => ({
+        ...prev,
+        inputBuffer: userTranscriptBuffer.current,
+        outputBuffer: aiTranscriptBuffer.current,
+        transcriptCount: transcriptRef.current.length,
+      }));
       setStreamingText('');
     }
   };
@@ -363,5 +410,5 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
     }
   }, [status]);
 
-  return { status, errorMessage, errorType, connect, disconnect, volume, streamingText, transcript: transcriptRef.current, usageStatus };
+  return { status, errorMessage, errorType, connect, disconnect, volume, streamingText, transcript: transcriptRef.current, usageStatus, transcriptDebug };
 };

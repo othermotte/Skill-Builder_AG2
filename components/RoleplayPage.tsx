@@ -35,6 +35,8 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   const [isAiConcluded, setIsAiConcluded] = useState(false);
   const [tutorInstruction, setTutorInstruction] = useState<string | null>(null);
   const [finalTranscript, setFinalTranscript] = useState<TranscriptEntry[]>([]);
+  const showTranscriptDebug = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('debugTranscript') === '1';
 
   const targetSkill = skills.find(s => s.id === scenario.skillId);
 
@@ -93,19 +95,7 @@ ${memoryList}
     Probe deeply into the participant’s thinking in a structured, neutral way. Collect evidence of reasoning.
   `;
 
-  const diagnosticInitialPrompt = `
-    I am ready to begin the diagnostic assessment for this exact scenario.
-
-    Scenario title: ${scenario.title}
-
-    Scenario description:
-    ${scenario.description}
-
-    Scenario-specific probing guidance:
-    ${scenario.instruction || 'Probe my reasoning, judgement, assumptions, stakeholder awareness, and trade-offs.'}
-
-    Start now with one neutral, scenario-specific question about this scenario only. Do not invent any other role play, tax, customer-service, branch, or unrelated context.
-  `;
+  const diagnosticInitialPrompt = 'Please begin.';
 
   // Provide a safe fallback but explicitly flag when it's loading.
   const combinedInstruction = mode === 'tutorial'
@@ -121,7 +111,8 @@ ${memoryList}
     volume,
     streamingText,
     transcript,
-    usageStatus
+    usageStatus,
+    transcriptDebug
   } = useLiveSession({
     voiceName: 'Kore',
     systemInstruction: combinedInstruction,
@@ -231,7 +222,7 @@ ${memoryList}
       instructionAreaContent = lastEntry.text;
       belowMicText = 'Voice Active';
     } else if (transcript.length === 0) {
-      instructionAreaContent = "Listening for the tutor...";
+      instructionAreaContent = "Wait for tutor to speak";
       belowMicText = 'Voice Active';
       isNudge = true;
     } else {
@@ -344,6 +335,50 @@ ${memoryList}
           </div>
         </div>
       </main>
+
+
+      {showTranscriptDebug && (
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:w-[440px] max-h-[45vh] overflow-y-auto bg-black/85 text-white rounded-2xl shadow-2xl z-[60] p-4 text-xs font-mono border border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-bold uppercase tracking-widest text-white/70">Transcript Debug</span>
+            <span className="text-white/50">{status}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+            <div className="bg-white/10 rounded-lg p-2">
+              <div className="text-white/50">input chunks</div>
+              <div className="text-lg font-bold">{transcriptDebug.inputChunkCount}</div>
+            </div>
+            <div className="bg-white/10 rounded-lg p-2">
+              <div className="text-white/50">output chunks</div>
+              <div className="text-lg font-bold">{transcriptDebug.outputChunkCount}</div>
+            </div>
+            <div className="bg-white/10 rounded-lg p-2">
+              <div className="text-white/50">entries</div>
+              <div className="text-lg font-bold">{transcript.length}</div>
+            </div>
+          </div>
+          <div className="mb-3">
+            <div className="text-white/50 mb-1">last serverContent keys</div>
+            <div className="break-words text-white/80">{transcriptDebug.lastServerContentKeys.join(', ') || 'none'}</div>
+          </div>
+          <div className="mb-3">
+            <div className="text-white/50 mb-1">live input buffer</div>
+            <div className="whitespace-pre-wrap text-white/90">{transcriptDebug.inputBuffer || 'empty'}</div>
+          </div>
+          <div className="mb-3">
+            <div className="text-white/50 mb-1">live output buffer</div>
+            <div className="whitespace-pre-wrap text-white/90">{transcriptDebug.outputBuffer || 'empty'}</div>
+          </div>
+          <div className="mb-3">
+            <div className="text-white/50 mb-1">finalTranscript entries after stop: {finalTranscript.length}</div>
+            <pre className="whitespace-pre-wrap text-white/80">{JSON.stringify(finalTranscript, null, 2)}</pre>
+          </div>
+          <div>
+            <div className="text-white/50 mb-1">current transcript array</div>
+            <pre className="whitespace-pre-wrap text-white/80">{JSON.stringify(transcript, null, 2)}</pre>
+          </div>
+        </div>
+      )}
 
       {showFeedbackConfirm && (
         <div className="fixed inset-0 bg-white/80 backdrop-blur-md flex items-center justify-center z-50 p-6">

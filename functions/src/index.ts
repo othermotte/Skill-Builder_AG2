@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -12,6 +12,8 @@ const geminiApiKey = defineSecret('GEMINI_API_KEY');
 const DAILY_DIAGNOSTIC_SESSION_LIMIT = 5;
 const DAILY_TUTORIAL_SESSION_LIMIT = 3;
 const DAILY_HELPER_AI_LIMIT = 12;
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const ANALYSIS_MODEL = 'gemini-2.5-pro';
 
 // Shared function options
 const fnOptions = {
@@ -133,6 +135,18 @@ async function recordGeminiUsage(
  */
 export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
   const sessionMode = request.data?.mode === 'tutorial' ? 'tutorial' : 'diagnostic';
+  const systemInstruction = String(request.data?.systemInstruction || '').trim();
+  const requestedVoiceName = String(request.data?.voiceName || 'Kore').trim();
+  const voiceName = /^[A-Za-z0-9_-]{1,32}$/.test(requestedVoiceName) ? requestedVoiceName : 'Kore';
+
+  if (!systemInstruction) {
+    throw new HttpsError('invalid-argument', 'Live session instructions are required.');
+  }
+
+  if (systemInstruction.length > 30000) {
+    throw new HttpsError('invalid-argument', 'Live session instructions are too long.');
+  }
+
   const usage = await recordGeminiUsage(
     request,
     sessionMode === 'tutorial' ? 'tutorial_session' : 'diagnostic_session',
@@ -155,7 +169,20 @@ export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
       newSessionExpireTime,
       expireTime,
       liveConnectConstraints: {
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: LIVE_MODEL,
+        config: {
+          responseModalities: [Modality.AUDIO],
+          systemInstruction,
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName,
+              },
+            },
+          },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        },
       },
       httpOptions: { apiVersion: 'v1alpha' },
     },
@@ -249,7 +276,7 @@ export const getFeedbackForTranscript = onCall(
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: ANALYSIS_MODEL,
         contents: prompt,
         config: { responseMimeType: 'application/json', responseSchema },
       });
@@ -309,7 +336,7 @@ export const getMicroSkillSuggestions = onCall(fnOptions, async (request) => {
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: ANALYSIS_MODEL,
     contents: prompt,
     config: {
       responseMimeType: 'application/json',
@@ -372,7 +399,7 @@ export const generateSkillSnapshot = onCall(fnOptions, async (request) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: ANALYSIS_MODEL,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -418,7 +445,7 @@ export const analyzePracticeReflection = onCall(fnOptions, async (request) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: ANALYSIS_MODEL,
       contents: `Analyze this transcript for the specific application of the micro-skill: "${microSkillLabel}".\n\nCRITICAL TONE REQUIREMENT: You are a highly supportive, encouraging leadership coach. This is a safe practice environment. Frame the "adjustment" specifically as a warm, actionable coaching tip rather than a harsh critique.\n\nTranscript:\n${formattedTranscript}`,
       config: {
         responseMimeType: 'application/json',
