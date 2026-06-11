@@ -217,9 +217,9 @@ ${memoryList}
       );
       belowMicText = 'Voice Active';
     } else if (lastEntry && lastEntry.speaker === 'ai') {
-      // PERSIST THE LAST AI MESSAGE while learner ponders
-      // This is crucial for keeping the challenge visible.
-      instructionAreaContent = lastEntry.text;
+      // In diagnostic mode the live transcription is only evidence capture; do
+      // not show provisional AI transcript text to the learner.
+      instructionAreaContent = mode === 'tutorial' ? lastEntry.text : 'Your turn';
       belowMicText = 'Voice Active';
     } else if (transcript.length === 0) {
       instructionAreaContent = "Wait for tutor to speak";

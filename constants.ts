@@ -4,7 +4,7 @@ import { Scenario, Skill, SkillLibrary } from './types';
 export const INITIAL_SCENARIOS: Scenario[] = [
   {
     "id": "lsb-explorer-1",
-    "instruction": "Probe the learner on how they weight the risk of bias against the material certainty of the contract and the team's bonuses. Push back on the idea that 'compliance' is enough.",
+    "instruction": "Explore how the learner weighs potential bias, regulatory compliance, client pressure, and personal or team incentives. Ask neutral follow-up questions about what evidence or principles would shape their decision.",
     "voice": "Zephyr",
     "title": "Innovation vs. fairness",
     "skillId": "ethics_integrity_values",
@@ -18,11 +18,11 @@ export const INITIAL_SCENARIOS: Scenario[] = [
     "skillId": "cognitive_analytical",
     "voice": "Fenrir",
     "id": "lsb-explorer-2",
-    "instruction": "Challenge the learner to provide immediate answers. Act as a proxy for a panicked board. See if they speculate or maintain analytical rigour."
+    "instruction": "Explore how the learner would respond under time pressure with incomplete information. Ask neutral follow-up questions about what they would say immediately, what they would withhold, and how they would maintain analytical rigour."
   },
   {
     "id": "lsb-explorer-3",
-    "instruction": "Probe for how the learner handles the anxiety of the 'skeptics'. Push back on corporate 'change' talk.",
+    "instruction": "Explore how the learner would understand and respond to anxiety or skepticism during change. Ask neutral follow-up questions about how they would build trust, maintain cohesion, and avoid relying on generic change language.",
     "voice": "Puck",
     "skillId": "change_leadership",
     "title": "Change",
@@ -31,7 +31,7 @@ export const INITIAL_SCENARIOS: Scenario[] = [
   },
   {
     "id": "lsb-explorer-4",
-    "instruction": "Push the learner to follow the data. Act as a data-maximalist. Challenge their 'intuition' as unscientific bias.",
+    "instruction": "Explore how the learner balances AI-driven analysis with qualitative signals and experienced judgement. Ask neutral follow-up questions about what evidence would change their view and how they would explain their decision.",
     "voice": "Kore",
     "skillId": "cognitive_analytical",
     "title": "Strategy",
@@ -45,7 +45,7 @@ export const INITIAL_SCENARIOS: Scenario[] = [
     "title": "Reputation",
     "skillId": "social_interpersonal",
     "id": "lsb-explorer-5",
-    "instruction": "Probe for transparency. Challenge the learner to explain the specific cost of a defensive stance versus a transparent one."
+    "instruction": "Explore how the learner weighs transparency, reputation, stakeholder trust, and defensive communication. Ask neutral follow-up questions about the consequences of different response strategies."
   }
 ];
 
