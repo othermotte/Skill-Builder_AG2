@@ -72,27 +72,47 @@ const App: React.FC = () => {
     if (!firebaseUser) return;
     setIsLoadingData(true);
     setDataLoadError(null);
+    const loadStartedAt = performance.now();
+
     try {
-      await ensureDbInitialized();
       const loadedAppUser = await getUser(firebaseUser.uid, { email: firebaseUser.email! });
       if (!loadedAppUser) throw new Error(`User profile initialization failed.`);
-      const [loadedScenarios, loadedSkills, loadedSessions, loadedAttempts, loadedLibrary] = await Promise.all([
+
+      let [loadedScenarios, loadedSkills] = await Promise.all([
         getScenarios(),
         getSkills(),
-        getPracticeSessions(firebaseUser.uid),
-        getPracticeAttempts(firebaseUser.uid),
-        getSkillLibrary(),
       ]);
+
+      if (loadedScenarios.length === 0 || loadedSkills.length === 0) {
+        await ensureDbInitialized();
+        [loadedScenarios, loadedSkills] = await Promise.all([
+          getScenarios(),
+          getSkills(),
+        ]);
+      }
+
       setAppUser(loadedAppUser);
       setScenarios(loadedScenarios);
       setSkills(loadedSkills);
-      setPracticeSessions(loadedSessions);
-      setPracticeAttempts(loadedAttempts);
-      setAppLibrary(loadedLibrary);
+      setIsLoadingData(false);
+
+      console.info(`[Startup] Core app data loaded in ${Math.round(performance.now() - loadStartedAt)}ms.`);
+
+      Promise.all([
+        getPracticeSessions(firebaseUser.uid),
+        getPracticeAttempts(firebaseUser.uid),
+        getSkillLibrary(),
+      ]).then(([loadedSessions, loadedAttempts, loadedLibrary]) => {
+        setPracticeSessions(loadedSessions);
+        setPracticeAttempts(loadedAttempts);
+        setAppLibrary(loadedLibrary);
+        console.info(`[Startup] Background history data loaded in ${Math.round(performance.now() - loadStartedAt)}ms.`);
+      }).catch((error) => {
+        console.warn("[Startup] Background history data failed to load:", error);
+      });
     } catch (error: any) {
       console.error("Data load error:", error);
       setDataLoadError(error.message);
-    } finally {
       setIsLoadingData(false);
     }
   };
