@@ -13,7 +13,7 @@ const DAILY_DIAGNOSTIC_SESSION_LIMIT = 5;
 const DAILY_TUTORIAL_SESSION_LIMIT = 3;
 const DAILY_HELPER_AI_LIMIT = 12;
 const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
-const ANALYSIS_MODEL = 'gemini-2.5-pro';
+const ANALYSIS_MODEL = 'gemini-3.5-flash';
 
 // Shared function options
 const fnOptions = {

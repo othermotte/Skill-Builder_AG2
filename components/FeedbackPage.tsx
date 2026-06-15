@@ -480,18 +480,21 @@ export const FeedbackPage: React.FC<FeedbackPageProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                             <div className="space-y-6">
                                 <p className="text-gray-400 font-medium leading-relaxed text-lg">
-                                    Lock in your learning now. Choose a proposed focus and enter a high-fidelity practice loop tailored to the gaps found in this transcript.
+                                    {isValid
+                                        ? 'Lock in your learning now. Choose a proposed focus and enter a high-fidelity practice loop tailored to the gaps found in this transcript.'
+                                        : 'A longer assessment is needed before practice can be personalised. Retry the scenario and give the assessor more evidence to work with.'}
                                 </p>
-                                <div className="flex items-center gap-3">
-                                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Personalized Targets Ready</span>
-                                </div>
+                                {isValid && (
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Personalized targets ready</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] flex flex-col justify-center items-center text-center backdrop-blur-sm group-hover:border-indigo-500/30 transition-colors">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Practice Variation</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Next step</span>
                                 <p className="text-3xl font-black tracking-tighter">Micro-Skill Practice</p>
-                                <p className="text-xs text-indigo-400 mt-4 font-black uppercase tracking-widest">Behavioral Alignment Focus</p>
                             </div>
                         </div>
 
