@@ -3,7 +3,6 @@ import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { httpsCallable } from 'firebase/functions';
 import { TranscriptEntry } from '../types';
 import { downsampleTo16k, base64EncodeAudio, pcmToAudioBuffer, decodeBase64ToBytes } from '../utils/audioUtils';
-import { getGlobalFacilitatorContract } from '../services/firebase';
 import { functions } from '../firebaseConfig';
 
 export type SessionStatus = 'idle' | 'connecting' | 'active' | 'error';
@@ -145,8 +144,6 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       aiTranscriptBuffer.current = '';
       setTranscriptDebug(initialTranscriptDebug);
 
-      const globalOS = omitGlobalOS ? '' : await getGlobalFacilitatorContract();
-
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = ctx;
       if (ctx.state === 'suspended') {
@@ -170,8 +167,6 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         : 'I have read the scenario and am ready. Begin the assessment with your first scenario-specific question.');
 
       const combinedInstruction = `
-        ${globalOS}
-
         ${systemInstruction}
 
         ### SESSION OPENING

@@ -4,7 +4,8 @@ import { Scenario, Skill, PracticeSession, User, MicroSkill, SkillSnapshot, Tran
 import { getFeedbackForTranscript } from '../services/geminiService';
 import { MicIcon } from './icons/MicIcon';
 import { useLiveSession } from '../hooks/useLiveSession';
-import { getMicroSkillTutorInstruction } from '../services/firebase';
+import { getGlobalFacilitatorContract, getMicroSkillTutorInstruction } from '../services/firebase';
+import { GLOBAL_FACILITATOR_CONTRACT } from '../constants';
 
 interface RoleplayPageProps {
   scenario: Scenario;
@@ -34,11 +35,22 @@ export const RoleplayPage: React.FC<RoleplayPageProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAiConcluded, setIsAiConcluded] = useState(false);
   const [tutorInstruction, setTutorInstruction] = useState<string | null>(null);
+  const [globalFacilitatorContract, setGlobalFacilitatorContract] = useState(GLOBAL_FACILITATOR_CONTRACT);
   const [finalTranscript, setFinalTranscript] = useState<TranscriptEntry[]>([]);
   const showTranscriptDebug = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('debugTranscript') === '1';
 
   const targetSkill = skills.find(s => s.id === scenario.skillId);
+
+  useEffect(() => {
+    if (mode === 'diagnostic') {
+      getGlobalFacilitatorContract()
+        .then(setGlobalFacilitatorContract)
+        .catch((err) => {
+          console.warn("Using bundled facilitator contract; Firestore refresh failed:", err);
+        });
+    }
+  }, [mode]);
 
   useEffect(() => {
     if (mode === 'tutorial' && practiceMode) {
@@ -100,7 +112,7 @@ ${memoryList}
   // Provide a safe fallback but explicitly flag when it's loading.
   const combinedInstruction = mode === 'tutorial'
     ? (tutorInstruction || 'LOADING_INSTRUCTION')
-    : diagnosticInstruction;
+    : `${globalFacilitatorContract}\n\n${diagnosticInstruction}`;
 
   const {
     status,
@@ -116,7 +128,7 @@ ${memoryList}
   } = useLiveSession({
     voiceName: 'Kore',
     systemInstruction: combinedInstruction,
-    omitGlobalOS: mode === 'tutorial',
+    omitGlobalOS: true,
     mode,
     initialPrompt: mode === 'diagnostic' ? diagnosticInitialPrompt : undefined,
     debugLabel: mode === 'diagnostic' ? `${scenario.id}: ${scenario.title}` : practiceMode?.microSkill.label
