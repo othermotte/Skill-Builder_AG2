@@ -56,6 +56,8 @@ export interface TranscriptEntry {
   text: string;
 }
 
+export type InteractionMedium = 'voice' | 'text';
+
 export interface FeedbackScore {
   score: number;
   justification: string;
@@ -101,6 +103,9 @@ export interface PracticeAttempt {
   selectionReason: string;
   snapshotContent?: string; // Stored as JSON string
   transcript: TranscriptEntry[];
+  interactionMedium?: InteractionMedium;
+  conversationModel?: string;
+  analysisModel?: string;
   reflection?: {
     detected: boolean;
     evidence: string;
@@ -118,6 +123,9 @@ export interface PracticeSession {
   userId: string;
   scenarioId: string;
   transcript: TranscriptEntry[];
+  interactionMedium?: InteractionMedium;
+  conversationModel?: string;
+  analysisModel?: string;
   feedback?: string;
   suggestedFocusOptions?: string;
   learner_rating?: number;

@@ -3,6 +3,7 @@ import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { createHash } from 'crypto';
 
 initializeApp();
 
@@ -12,8 +13,14 @@ const geminiApiKey = defineSecret('GEMINI_API_KEY');
 const DAILY_DIAGNOSTIC_SESSION_LIMIT = 5;
 const DAILY_TUTORIAL_SESSION_LIMIT = 3;
 const DAILY_HELPER_AI_LIMIT = 12;
-const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const SESSION_LIMIT_EXEMPT_EMAILS = new Set([
+  'gary@gardenersnotmechanics.com',
+]);
+const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 const ANALYSIS_MODEL = 'gemini-3.5-flash';
+const TEXT_SESSION_DURATION_MS = 30 * 60 * 1000;
+const MAX_TEXT_TRANSCRIPT_ENTRIES = 60;
+const MAX_TEXT_TRANSCRIPT_CHARS = 60000;
 
 // Shared function options
 const fnOptions = {
@@ -61,6 +68,13 @@ async function recordGeminiUsage(
   const db = getFirestore();
   const uid = request.auth.uid;
   const email = request.auth.token.email || null;
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const isSessionStart = action === 'diagnostic_session' || action === 'tutorial_session';
+
+  if (isSessionStart && SESSION_LIMIT_EXEMPT_EMAILS.has(normalizedEmail)) {
+    return { count: 0, limit, remaining: limit, unlimited: true };
+  }
+
   const today = dayKey();
   const usageRef = db.collection('geminiUsageDaily').doc(usageDocId(uid, action));
 
@@ -193,6 +207,149 @@ export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
   }
 
   return { token: token.name, usage };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEXT: Turn-based conversation using the stable Series 3 Flash model
+// ─────────────────────────────────────────────────────────────────────────────
+
+function textInstructionHash(systemInstruction: string) {
+  return createHash('sha256').update(systemInstruction).digest('hex');
+}
+
+function textOpeningPrompt(mode: 'diagnostic' | 'tutorial') {
+  return mode === 'tutorial'
+    ? 'I am ready to begin the micro-skill practice. Start the first short practice challenge now.'
+    : 'I have read the scenario and am ready. Begin the assessment now.';
+}
+
+function parseTextTranscript(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TEXT_TRANSCRIPT_ENTRIES) {
+    throw new HttpsError('invalid-argument', 'The text conversation history is invalid.');
+  }
+
+  let totalChars = 0;
+  const transcript = value.map((entry: any) => {
+    const speaker = entry?.speaker === 'ai' ? 'ai' : entry?.speaker === 'user' ? 'user' : null;
+    const text = String(entry?.text || '').trim();
+    if (!speaker || !text || text.length > 8000) {
+      throw new HttpsError('invalid-argument', 'The text conversation contains an invalid message.');
+    }
+    totalChars += text.length;
+    return { speaker, text };
+  });
+
+  if (totalChars > MAX_TEXT_TRANSCRIPT_CHARS || transcript[transcript.length - 1].speaker !== 'user') {
+    throw new HttpsError('invalid-argument', 'The text conversation is too long or is missing the latest learner response.');
+  }
+
+  return transcript;
+}
+
+export const startGeminiTextSession = onCall(fnOptions, async (request) => {
+  const mode: 'diagnostic' | 'tutorial' = request.data?.mode === 'tutorial' ? 'tutorial' : 'diagnostic';
+  const systemInstruction = String(request.data?.systemInstruction || '').trim();
+
+  if (!systemInstruction || systemInstruction.length > 30000) {
+    throw new HttpsError('invalid-argument', 'Text session instructions are missing or too long.');
+  }
+
+  const usage = await recordGeminiUsage(
+    request,
+    mode === 'tutorial' ? 'tutorial_session' : 'diagnostic_session',
+    mode === 'tutorial' ? DAILY_TUTORIAL_SESSION_LIMIT : DAILY_DIAGNOSTIC_SESSION_LIMIT
+  );
+
+  const ai = getAI(geminiApiKey.value());
+  const response = await ai.models.generateContent({
+    model: ANALYSIS_MODEL,
+    contents: textOpeningPrompt(mode),
+    config: { systemInstruction },
+  });
+  const responseText = response.text?.trim();
+
+  if (!responseText) {
+    throw new HttpsError('internal', 'The text tutor did not return an opening message.');
+  }
+
+  const db = getFirestore();
+  const sessionRef = db.collection('geminiTextSessions').doc();
+  await sessionRef.set({
+    uid: request.auth!.uid,
+    email: request.auth!.token.email || null,
+    mode,
+    model: ANALYSIS_MODEL,
+    instructionHash: textInstructionHash(systemInstruction),
+    expiresAt: new Date(Date.now() + TEXT_SESSION_DURATION_MS),
+    createdAt: FieldValue.serverTimestamp(),
+    lastUsedAt: FieldValue.serverTimestamp(),
+    turnCount: 1,
+  });
+
+  return {
+    sessionId: sessionRef.id,
+    response: responseText,
+    model: ANALYSIS_MODEL,
+    usage,
+  };
+});
+
+export const continueGeminiTextSession = onCall(fnOptions, async (request) => {
+  assertAuth(request);
+
+  const sessionId = String(request.data?.sessionId || '').trim();
+  const systemInstruction = String(request.data?.systemInstruction || '').trim();
+  const transcript = parseTextTranscript(request.data?.transcript);
+
+  if (!sessionId || !systemInstruction || systemInstruction.length > 30000) {
+    throw new HttpsError('invalid-argument', 'The text session details are invalid.');
+  }
+
+  const db = getFirestore();
+  const sessionRef = db.collection('geminiTextSessions').doc(sessionId);
+  const sessionSnap = await sessionRef.get();
+  const sessionData = sessionSnap.data();
+
+  if (!sessionSnap.exists || sessionData?.uid !== request.auth!.uid) {
+    throw new HttpsError('permission-denied', 'This text session is not available.');
+  }
+
+  const expiresAt = sessionData?.expiresAt?.toMillis?.() || 0;
+  if (expiresAt <= Date.now()) {
+    throw new HttpsError('deadline-exceeded', 'This text session has expired. Please start a new one.');
+  }
+
+  if (sessionData?.instructionHash !== textInstructionHash(systemInstruction)) {
+    throw new HttpsError('failed-precondition', 'The text session context has changed. Please start a new one.');
+  }
+
+  const mode: 'diagnostic' | 'tutorial' = sessionData?.mode === 'tutorial' ? 'tutorial' : 'diagnostic';
+  const contents = [
+    { role: 'user', parts: [{ text: textOpeningPrompt(mode) }] },
+    ...transcript.map(entry => ({
+      role: entry.speaker === 'ai' ? 'model' : 'user',
+      parts: [{ text: entry.text }],
+    })),
+  ];
+
+  const ai = getAI(geminiApiKey.value());
+  const response = await ai.models.generateContent({
+    model: ANALYSIS_MODEL,
+    contents,
+    config: { systemInstruction },
+  });
+  const responseText = response.text?.trim();
+
+  if (!responseText) {
+    throw new HttpsError('internal', 'The text tutor did not return a response.');
+  }
+
+  await sessionRef.update({
+    lastUsedAt: FieldValue.serverTimestamp(),
+    turnCount: FieldValue.increment(1),
+  });
+
+  return { response: responseText, model: ANALYSIS_MODEL };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

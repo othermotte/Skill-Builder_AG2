@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User as FirebaseAuthUser } from 'firebase/auth';
-import { User, Scenario, Skill, PracticeSession, Role, FeedbackAnalysis, PracticeAttempt, MicroSkill, SkillSnapshot, SkillLibrary } from './types';
+import { User, Scenario, Skill, PracticeSession, Role, FeedbackAnalysis, PracticeAttempt, MicroSkill, SkillSnapshot, SkillLibrary, InteractionMedium } from './types';
 import {
   logout,
   getUser,
@@ -31,6 +31,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { SkillSnapshotView } from './components/SkillSnapshotView';
 import { ReflectionView } from './components/ReflectionView';
 import { AppFeedbackModal } from './components/AppFeedbackModal';
+import { AssessmentLaunchPage } from './components/AssessmentLaunchPage';
 
 
 const App: React.FC = () => {
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
 
-  const [activePage, setActivePage] = useState<'login' | 'dashboard' | 'roleplay' | 'feedback' | 'history' | 'snapshot' | 'reflection'>('dashboard');
+  const [activePage, setActivePage] = useState<'login' | 'dashboard' | 'assessment-launch' | 'roleplay' | 'feedback' | 'history' | 'snapshot' | 'reflection'>('dashboard');
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [currentPracticeSession, setCurrentPracticeSession] = useState<PracticeSession | null>(null);
   const [feedbackInitialView, setFeedbackInitialView] = useState<'feedback' | 'choose_focus'>('feedback');
@@ -54,6 +55,7 @@ const App: React.FC = () => {
   const [activeMicroSkill, setActiveMicroSkill] = useState<MicroSkill | null>(null);
   const [snapshot, setSnapshot] = useState<SkillSnapshot | null>(null);
   const [practiceType, setPracticeType] = useState<'diagnostic' | 'tutorial'>('diagnostic');
+  const [interactionMedium, setInteractionMedium] = useState<InteractionMedium | null>(null);
   const [showAppFeedback, setShowAppFeedback] = useState(false);
 
 
@@ -135,8 +137,15 @@ const App: React.FC = () => {
     setCurrentPracticeSession(null);
     setActiveMicroSkill(null);
     setPracticeType('diagnostic');
+    setInteractionMedium(null);
+    setActivePage('assessment-launch');
+  };
+
+  const handleAssessmentMediumSelect = (medium: InteractionMedium) => {
+    if (!selectedScenario) return;
+    setInteractionMedium(medium);
     setActivePage('roleplay');
-    logEvent(appUser?.id!, 'assessor_lab_started', { scenarioId: scenario.id });
+    logEvent(appUser?.id!, 'assessor_lab_started', { scenarioId: selectedScenario.id, interactionMedium: medium });
   };
 
   const handleBeginPracticeLoop = async (groupId: string, microSkillId: string, reason: string) => {
@@ -175,9 +184,10 @@ const App: React.FC = () => {
     logEvent(appUser.id, 'snapshot_delivered', { microSkillId });
   };
 
-  const handlePracticeLoopStart = () => {
+  const handlePracticeLoopStart = (medium: InteractionMedium) => {
+    setInteractionMedium(medium);
     setActivePage('roleplay');
-    logEvent(appUser?.id!, 'practice_loop_started', { microSkillId: activeMicroSkill?.id });
+    logEvent(appUser?.id!, 'practice_loop_started', { microSkillId: activeMicroSkill?.id, interactionMedium: medium });
   };
 
   const handleSessionEnd = async (completedSession: PracticeSession, isDiagnostic = true, isCompleted = false) => {
@@ -189,7 +199,10 @@ const App: React.FC = () => {
       if (activeMicroSkill && activePracticeAttempt) {
         const attemptPayload: Partial<PracticeAttempt> = {
           ...activePracticeAttempt,
-          transcript: completedSession.transcript
+          transcript: completedSession.transcript,
+          interactionMedium: completedSession.interactionMedium,
+          conversationModel: completedSession.conversationModel,
+          analysisModel: completedSession.analysisModel
         };
 
         if (isCompleted) {
@@ -320,13 +333,20 @@ const App: React.FC = () => {
             setActivePage('feedback');
           }}
         />;
+      case 'assessment-launch':
+        return selectedScenario ? <AssessmentLaunchPage
+          scenario={selectedScenario}
+          onSelectMedium={handleAssessmentMediumSelect}
+          onBack={() => setActivePage('dashboard')}
+        /> : null;
       case 'roleplay':
-        return selectedScenario ? <RoleplayPage
+        return selectedScenario && interactionMedium ? <RoleplayPage
           scenario={selectedScenario} skills={skills} currentUser={appUser}
           onSessionEnd={handleSessionEnd}
           onBackToDashboard={() => setActivePage('dashboard')}
           practiceMode={activeMicroSkill ? { microSkill: activeMicroSkill, cuePrompt: activeMicroSkill.cue || '', snapshot: snapshot || undefined } : undefined}
           mode={practiceType}
+          interactionMedium={interactionMedium}
         /> : null;
       case 'feedback':
         if (!currentPracticeSession) {
@@ -379,13 +399,7 @@ const App: React.FC = () => {
           practiceSessions={practiceSessions} scenarios={scenarios} skills={skills}
           practiceAttempts={practiceAttempts}
           appLibrary={appLibrary}
-          onViewItem={(s) => {
-            const scenario = scenarios.find(sc => sc.id === s.scenarioId);
-            setSelectedScenario(scenario || null);
-            setCurrentPracticeSession(s);
-            setFeedbackInitialView('feedback');
-            setActivePage('feedback');
-          }}
+          currentUser={appUser}
           onDeleteItem={async (id) => { await deletePracticeSession(id); setPracticeSessions(prev => prev.filter(ps => ps.id !== id)); }}
         />;
       default:
@@ -396,7 +410,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-900 font-sans mx-auto w-full overflow-x-hidden">
       {firebaseUser && appUser && (
-        <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-gray-200 h-16 flex items-center w-full">
+        <header className="app-shell-header sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-gray-200 h-16 flex items-center w-full">
           <div className="max-w-7xl mx-auto w-full px-4 flex justify-between items-center">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActivePage('dashboard')}>
               <div className="bg-blue-50 p-1.5 rounded-lg text-blue-600 flex items-center justify-center">

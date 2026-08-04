@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebaseConfig';
-import type { TranscriptEntry, Scenario, FeedbackAnalysis, PracticeAttempt, SkillSnapshot } from '../types';
+import type { TranscriptEntry, Scenario, FeedbackAnalysis, PracticeAttempt, SkillSnapshot, InteractionMedium } from '../types';
 import {
   getGlobalAssessorProtocol,
   getSkillLibrary
@@ -16,9 +16,55 @@ export class GeminiApiError extends Error {
   }
 }
 
+interface UsageStatus {
+  count: number;
+  limit: number;
+  remaining: number;
+  unlimited?: boolean;
+}
+
+interface TextSessionStart {
+  sessionId: string;
+  response: string;
+  model: string;
+  usage?: UsageStatus;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // All AI calls go through Firebase Cloud Functions.
 // The real Gemini API key never touches the browser.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const startTextConversation = async (
+  mode: 'diagnostic' | 'tutorial',
+  systemInstruction: string
+): Promise<TextSessionStart> => {
+  const fn = httpsCallable<
+    { mode: 'diagnostic' | 'tutorial'; systemInstruction: string },
+    TextSessionStart
+  >(functions, 'startGeminiTextSession');
+  const result = await fn({ mode, systemInstruction });
+  return result.data;
+};
+
+export const continueTextConversation = async (
+  sessionId: string,
+  systemInstruction: string,
+  transcript: TranscriptEntry[]
+): Promise<{ response: string; model: string }> => {
+  const fn = httpsCallable<
+    { sessionId: string; systemInstruction: string; transcript: TranscriptEntry[] },
+    { response: string; model: string }
+  >(functions, 'continueGeminiTextSession');
+  const result = await fn({ sessionId, systemInstruction, transcript });
+  return result.data;
+};
+
+export const conversationModelForMedium = (medium: InteractionMedium) =>
+  medium === 'text'
+    ? 'gemini-3.5-flash'
+    : 'gemini-3.1-flash-live-preview';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**

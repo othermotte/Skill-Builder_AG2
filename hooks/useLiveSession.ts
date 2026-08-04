@@ -12,6 +12,7 @@ interface UsageStatus {
   count: number;
   limit: number;
   remaining: number;
+  unlimited?: boolean;
 }
 
 interface TranscriptDebugState {
@@ -200,20 +201,18 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       });
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-3.1-flash-live-preview',
         callbacks: {
           onopen: () => {
             console.log("LiveSession: Connection opened.");
             statusRef.current = 'active';
             setStatus('active');
             setErrorMessage(null);
-            // Automatically send an invisible text prompt to kick off the AI's greeting
+            // Gemini 3.1 Live accepts conversational text through the real-time
+            // input channel. Client content is reserved for seeded history.
             sessionPromiseRef.current?.then((session) => {
               try {
-                session.sendClientContent({
-                  turns: [{ role: 'user', parts: [{ text: initialPrompt }] }],
-                  turnComplete: true
-                });
+                session.sendRealtimeInput({ text: initialPrompt });
               } catch (e) {
                 console.warn("Failed to send initial greeting trigger", e);
               }
@@ -274,7 +273,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         const downsampled = downsampleTo16k(inputData, ctx.sampleRate);
         const b64Data = base64EncodeAudio(downsampled);
         sessionPromiseRef.current?.then((session) => {
-          session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+          session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
         }).catch(err => {
           console.warn("LiveSession: Failed to send realtime input", err);
         });
@@ -337,23 +336,27 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
       setStreamingText(aiTranscriptBuffer.current);
     }
 
-    const audioData = serverContent.modelTurn?.parts?.find((part) => part.inlineData)?.inlineData?.data;
-    if (ctx && audioData) {
+    const audioParts = serverContent.modelTurn?.parts?.filter((part) => part.inlineData?.data) || [];
+    if (ctx && audioParts.length > 0) {
       if (userTranscriptBuffer.current.trim()) {
         appendTranscript({ speaker: 'user', text: userTranscriptBuffer.current.trim() });
         userTranscriptBuffer.current = '';
         setTranscriptDebug(prev => ({ ...prev, inputBuffer: '' }));
       }
-      const bytes = decodeBase64ToBytes(audioData);
-      const audioBuffer = pcmToAudioBuffer(bytes, ctx, 24000);
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(ctx.destination);
-      const startTime = Math.max(ctx.currentTime, nextStartTimeRef.current);
-      source.start(startTime);
-      nextStartTimeRef.current = startTime + audioBuffer.duration;
-      audioSourcesRef.current.add(source);
-      source.onended = () => audioSourcesRef.current.delete(source);
+      for (const part of audioParts) {
+        const audioData = part.inlineData?.data;
+        if (!audioData) continue;
+        const bytes = decodeBase64ToBytes(audioData);
+        const audioBuffer = pcmToAudioBuffer(bytes, ctx, 24000);
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        const startTime = Math.max(ctx.currentTime, nextStartTimeRef.current);
+        source.start(startTime);
+        nextStartTimeRef.current = startTime + audioBuffer.duration;
+        audioSourcesRef.current.add(source);
+        source.onended = () => audioSourcesRef.current.delete(source);
+      }
     }
 
     if (serverContent.turnComplete) {
@@ -394,7 +397,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
         
         sessionPromiseRef.current?.then((session) => {
           try {
-            session.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
+            session.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: b64Data } });
           } catch (e) {
             console.warn("LiveSession: Failed to send realtime input", e);
           }

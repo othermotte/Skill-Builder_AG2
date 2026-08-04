@@ -1,5 +1,6 @@
-import React from 'react';
-import { PracticeSession, Scenario, Skill, PracticeAttempt, SkillLibrary } from '../types';
+import React, { useState } from 'react';
+import { PracticeSession, Scenario, Skill, PracticeAttempt, SkillLibrary, User } from '../types';
+import { LearningRecordView } from './LearningRecordView';
 
 interface HistoryPageProps {
   practiceSessions: PracticeSession[];
@@ -7,14 +8,32 @@ interface HistoryPageProps {
   skills: Skill[];
   practiceAttempts: PracticeAttempt[];
   appLibrary: SkillLibrary | null;
-  onViewItem: (session: PracticeSession) => void;
+  currentUser: User;
   onDeleteItem: (sessionId: string) => void;
 }
 
-export const HistoryPage: React.FC<HistoryPageProps> = ({ practiceSessions, scenarios, skills, practiceAttempts, appLibrary, onViewItem, onDeleteItem }) => {
+export const HistoryPage: React.FC<HistoryPageProps> = ({ practiceSessions, scenarios, skills, practiceAttempts, appLibrary, currentUser, onDeleteItem }) => {
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const completedSessions = [...practiceSessions]
     .filter(p => p.status === 'completed')
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const selectedSession = completedSessions.find(session => session.id === selectedSessionId);
+  const selectedScenario = selectedSession ? scenarios.find(scenario => scenario.id === selectedSession.scenarioId) : null;
+
+  if (selectedSession && selectedScenario) {
+    return (
+      <LearningRecordView
+        currentUser={currentUser}
+        session={selectedSession}
+        scenario={selectedScenario}
+        skills={skills}
+        practiceAttempts={practiceAttempts}
+        appLibrary={appLibrary}
+        onBack={() => setSelectedSessionId(null)}
+      />
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6 lg:p-8 w-full">
@@ -44,28 +63,26 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ practiceSessions, scen
 
                   {(() => {
                     const sessionAttempts = practiceAttempts.filter(a => a.parentSessionId === session.id);
-                    if (sessionAttempts.length === 0) return null;
-                    // Deduplicate attempts by microSkillId
-                    const uniqueAttemptsMap = new Map<string, PracticeAttempt & { isCompleted: boolean }>();
-                    sessionAttempts.forEach(a => {
-                      const existing = uniqueAttemptsMap.get(a.microSkillId);
-                      const isCompleted = !!a.completedAt;
-                      if (!existing || (!existing.isCompleted && isCompleted)) {
-                        uniqueAttemptsMap.set(a.microSkillId, { ...a, isCompleted });
+                    const completedAttempts = sessionAttempts.filter(attempt => !!attempt.completedAt);
+                    let rubricStatus: 'valid' | 'invalid' | 'unavailable' = 'unavailable';
+
+                    if (session.feedback) {
+                      try {
+                        const feedback = JSON.parse(session.feedback);
+                        rubricStatus = feedback?.validity?.is_valid === true ? 'valid' : 'invalid';
+                      } catch {
+                        rubricStatus = 'unavailable';
                       }
-                    });
-                    const uniqueAttempts = Array.from(uniqueAttemptsMap.values());
+                    }
 
                     return (
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {uniqueAttempts.map(a => {
-                          const msLabel = appLibrary?.skill_groups.flatMap(g => g.skills).flatMap(s => s.micro_skills).find(m => m.id === a.microSkillId)?.label;
-                          return (
-                            <span key={a.id} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm border ${a.isCompleted ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                              {a.isCompleted ? '✓ ' : ''}{msLabel || 'Micro-skill'}
-                            </span>
-                          );
-                        })}
+                        <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm border bg-gray-50 text-gray-600 border-gray-200">
+                          {completedAttempts.length} completed micro-{completedAttempts.length === 1 ? 'practice' : 'practices'}
+                        </span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm border ${rubricStatus === 'valid' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                          {rubricStatus === 'valid' ? 'Formative rubric included' : rubricStatus === 'invalid' ? 'Assessment needs more evidence' : 'Rubric unavailable'}
+                        </span>
                       </div>
                     );
                   })()}
@@ -73,10 +90,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ practiceSessions, scen
 
                 <div className="flex-shrink-0 flex gap-2 w-full sm:w-auto pt-2 sm:pt-0">
                   <button
-                    onClick={() => onViewItem(session)}
+                    onClick={() => setSelectedSessionId(session.id)}
                     className="flex-1 sm:flex-none bg-black text-white hover:bg-gray-800 font-medium py-2 px-4 rounded-lg text-xs transition-colors shadow-sm"
                   >
-                    View Feedback
+                    View learning record
                   </button>
                   <button
                     onClick={() => onDeleteItem(session.id)}

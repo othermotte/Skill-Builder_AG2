@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
-import { MicroSkill, SkillSnapshot } from '../types';
+import { InteractionMedium, MicroSkill, SkillSnapshot } from '../types';
+import { SessionMediumChoice } from './SessionMediumChoice';
 
 interface SkillSnapshotViewProps {
   microSkill: MicroSkill;
   snapshot: SkillSnapshot;
   reason: string;
-  onStartPractice: () => void;
+  onStartPractice: (medium: InteractionMedium) => void;
   onPause: () => void;
 }
 
 export const SkillSnapshotView: React.FC<SkillSnapshotViewProps> = ({ microSkill, snapshot, reason, onStartPractice, onPause }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [selectedMedium, setSelectedMedium] = useState<InteractionMedium | null>(null);
 
-  const handleStart = () => {
+  const handleStart = (medium: InteractionMedium) => {
+    setSelectedMedium(medium);
     setIsTransitioning(true);
     // Add a slight delay to ensure UI feels responsive to the loading state
     setTimeout(() => {
-        onStartPractice();
+        onStartPractice(medium);
     }, 800);
   };
 
@@ -89,7 +92,7 @@ export const SkillSnapshotView: React.FC<SkillSnapshotViewProps> = ({ microSkill
             <div className="flex flex-col items-center gap-4 py-6">
                 <div className="w-8 h-8 border-4 border-gray-100 border-t-indigo-500 rounded-full animate-spin"></div>
                 <div className="text-center">
-                    <p className="text-sm font-black text-gray-900 uppercase tracking-widest">Setting up your first micro-challenge...</p>
+                    <p className="text-sm font-black text-gray-900 uppercase tracking-widest">Setting up your {selectedMedium} practice...</p>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                         {microSkill.label} • {microSkill.cue}
                     </p>
@@ -97,17 +100,7 @@ export const SkillSnapshotView: React.FC<SkillSnapshotViewProps> = ({ microSkill
             </div>
           ) : (
             <>
-              <button 
-                onClick={handleStart} 
-                className="w-full md:w-auto bg-black text-white hover:bg-indigo-600 py-6 px-16 rounded-[2.5rem] font-black uppercase tracking-widest text-xs shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 group"
-              >
-                <span>BEGIN TUTORIAL</span>
-              </button>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Next: you’ll practise this micro-skill in a short guided tutorial.
-                </p>
-              </div>
+              <SessionMediumChoice activityLabel="practice" onSelect={handleStart} />
             </>
           )}
         </div>

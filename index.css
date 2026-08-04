@@ -1,1 +1,78 @@
 @import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4;
+    margin: 13mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .app-shell-header,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .learning-record-screen {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .learning-record-print {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .learning-record-print .record-section {
+    padding-top: 7mm !important;
+    padding-bottom: 7mm !important;
+  }
+
+  .learning-record-print .record-header {
+    padding-bottom: 7mm !important;
+  }
+
+  .learning-record-print .record-meta {
+    grid-template-columns: 1.35fr 1fr 1fr !important;
+  }
+
+  .learning-record-print .record-score-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .learning-record-print .practice-record {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-page-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .record-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

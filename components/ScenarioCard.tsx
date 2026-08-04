@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Scenario } from '../types';
-import { MicIcon } from './icons/MicIcon';
 
 interface ScenarioCardProps {
   scenario: Scenario;
@@ -11,13 +10,16 @@ interface ScenarioCardProps {
 
 export const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario, depth = 0, onSelect }) => {
   return (
-    <div
+    <button
+      type="button"
       onClick={onSelect}
-      className="group relative bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-900 rounded-3xl p-8 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-sm hover:shadow-2xl ease-out cursor-pointer"
+      className="group relative w-full text-left bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-900 rounded-3xl p-8 transition-all duration-500 flex flex-col h-full overflow-hidden shadow-sm hover:shadow-2xl ease-out cursor-pointer"
     >
       <div className="flex justify-between items-start mb-6">
         <div className="bg-gray-100 text-gray-400 p-2 rounded-full group-hover:bg-black group-hover:text-white transition-colors duration-500">
-            <MicIcon className="w-4 h-4" />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5m4.75-11.396c.75.068 1.501.068 2.25 0m0 0v5.714c0 .597.237 1.17.659 1.591L16.75 14.5M5 14.5l-.887 1.775A2.25 2.25 0 0 0 6.125 19.5h7.75a2.25 2.25 0 0 0 2.012-3.225L16.75 14.5M5 14.5h11.75" />
+            </svg>
         </div>
       </div>
       
@@ -39,6 +41,6 @@ export const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario, depth = 0,
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 };
