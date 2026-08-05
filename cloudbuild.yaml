@@ -1,7 +1,7 @@
 steps:
   # Deploy Firebase Cloud Functions first. These hold the Gemini API key and
   # mint ephemeral Live tokens for authenticated users.
-  - name: 'node:20'
+  - name: 'node:22'
     entrypoint: 'bash'
     args:
       - '-c'
