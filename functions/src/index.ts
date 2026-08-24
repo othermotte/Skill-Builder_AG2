@@ -36,7 +36,7 @@ function getAI(secretValue: string) {
 function getLiveAI(secretValue: string) {
   return new GoogleGenAI({
     apiKey: secretValue,
-    httpOptions: { apiVersion: 'v1alpha' },
+    httpOptions: { apiVersion: 'v1beta' },
   });
 }
 
@@ -198,7 +198,7 @@ export const getGeminiLiveToken = onCall(fnOptions, async (request) => {
           outputAudioTranscription: {},
         },
       },
-      httpOptions: { apiVersion: 'v1alpha' },
+      httpOptions: { apiVersion: 'v1beta' },
     },
   });
 

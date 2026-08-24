@@ -189,7 +189,7 @@ export const useLiveSession = ({ voiceName, systemInstruction, omitGlobalOS = fa
 
       const ai = new GoogleGenAI({
         apiKey: ephemeralToken,
-        httpOptions: { apiVersion: 'v1alpha' },
+        httpOptions: { apiVersion: 'v1beta' },
       });
 
       console.log("LiveSession: Starting Gemini Live session.", {
